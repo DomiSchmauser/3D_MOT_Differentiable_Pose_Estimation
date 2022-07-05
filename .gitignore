@@ -1,0 +1,85 @@
+# CFG
+baseconfig.py
+
+
+!BlenderProc/resources/front_3D/3D-FUTURE-model/
+
+
+# Detection
+Detection/outputs
+Detection/outputs_v1
+Detection/outputs_v2
+Detection/outputs_v3
+Detection/outputs_v4
+Detection/predicted_data
+Detection/model
+Detection/front_dataset
+Detection/office_dataset
+Detection/office_dataset_all
+Detection/scannet
+Detection/__pycache__
+
+# Junk
+.idea
+*__pychache__
+
+
+# Blenderproc
+BlenderProc/blender
+BlenderProc/.idea/
+BlenderProc/.vscode/
+BlenderProc/output/
+BlenderProc/output_good/
+BlenderProc/debug/
+BlenderProc/resources/cctextures
+BlenderProc/resources/scenenet/*zip
+BlenderProc/resources/scenenet/SceneNetData
+BlenderProc/resources/scenenet/texture*
+BlenderProc/resources/blenderkit
+BlenderProc/resources/IKEA
+BlenderProc/resources/pix3d
+BlenderProc/resources/front_3D/3D-FRONT
+BlenderProc/resources/front_3D/3D-FRONT-texture
+BlenderProc/resources/front_3D/3D-FUTURE-model
+BlenderProc/examples/front_3d_with_improved_mat/output
+BlenderProc/examples/front_3d/output
+BlenderProc/output
+*.blend1
+.vscode
+*.pyc
+*.swp
+*.so
+BlenderProc/docs/build/
+BlenderProc/!docs/source/index.rst
+BlenderProc/docs/source/*rst
+BlenderProc/utils/libmesh/*.cpp
+BlenderProc/utils/libvoxelize/*.c
+BlenderProc/build/
+
+Detection/outputs_1/
+
+# Pix2Vox
+Pix2Vox
+Pix2Vox/instance/
+Pix2Vox/target/
+Pix2Vox/datasets/
+Pix2Vox/output/
+Pix2Vox/pretrained/
+Pix2Vox/runs/
+
+# Pose
+PoseEst/data/
+
+# Tracking
+Tracking/output/
+Tracking/output_v1/
+Tracking/model/
+
+# Utils
+Utility/buggy_scenes.txt
+Utility/voxel_scenes.txt
+
+# Backup
+Backup
+
+!BlenderProc/resources/front_3D/3D-FUTURE-model/*.json
