@@ -59,7 +59,7 @@ class Options:
         self.parser.add_argument("--learning_rate",
                                  type=float,
                                  help="learning rate",
-                                 default=1e-3) #default 1e-3 for tracking only, 1e-4 for end to end
+                                 default=1e-3)
         self.parser.add_argument("--weight_decay", # L2 Regularization
                                  type=float,
                                  help="weight decay",
@@ -71,7 +71,7 @@ class Options:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=8)
+                                 default=2)
         self.parser.add_argument("--use_augmentation",
                                  type=bool,
                                  help="use data augmentation",

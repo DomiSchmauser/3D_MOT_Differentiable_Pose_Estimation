@@ -27,7 +27,7 @@ from Tracking.graph_cfg import init_graph_cfg
 from Tracking import networks
 from Tracking import datasets
 from Tracking.utils.train_utils import check_pair, sec_to_hm_str, init_weights, get_quaternion_from_euler
-from Tracking.utils.eval_utils import get_precision, get_recall, get_f1, get_MOTA, get_mota_df
+from Tracking.utils.eval_utils import get_mota_df
 from Tracking.utils.vis_utils import visualize_graph
 from Tracking.tracker.tracking_front import Tracker
 
@@ -368,7 +368,7 @@ class Trainer:
 
             duration = time.time() - before_op_time
 
-            self.opt.log_frequency = 1
+            #self.opt.log_frequency = 1
             if int(batch_idx + 1) % self.opt.log_frequency == 0:
                 self.log_time(batch_idx, duration, loss.cpu().data)
                 self.log("train", losses)
@@ -380,7 +380,7 @@ class Trainer:
     def process_batch(self, inputs, mode='train', debug_mode=False):
 
         '''
-        1. Siamese Network encodes voxel grids in feature space, MLP Encodes relative pose for latent edge features
+        1. Encodes voxel grids in feature space, MLP Encodes relative pose for latent edge features
         2. Get active/non-active edges (TARGETS) by computing IoU pred and GT and compare GT object ids
         3. Neural Message Passing
         4. Edge classification into active non-active

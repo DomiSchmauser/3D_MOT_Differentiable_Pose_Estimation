@@ -9,6 +9,9 @@ sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
 class Office_dataset(Dataset):
+    '''
+    Office Real-World dataset data loader class
+    '''
     def __init__(self, base_dir, split='infer'):
         self.split = split
         self.data_dir = base_dir

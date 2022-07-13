@@ -31,8 +31,8 @@ class RegisterDataset:
 
     def __init__(self, mapping_list, name_list, img_dir=IMG_DIR):
         self.img_dir = img_dir
-        self.mapping_list = mapping_list
-        self.name_list = name_list
+        self.mapping_list = list(mapping_list)
+        self.name_list = list(name_list)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def get_front_dicts(self, img_path):
@@ -88,7 +88,8 @@ class RegisterDataset:
                         jid = anno['jid']
                         scale = np.array(anno['3Dscale'])
 
-                        voxel = os.path.join(CONF.PATH.FUTURE3D, jid, 'model.binvox')
+                        #voxel = os.path.join(CONF.PATH.FUTURE3D, jid, 'model.binvox')
+                        voxel = os.path.join(CONF.PATH.VOXELDATA, jid, 'model.binvox')
                         name = csv_dict[cat_id]
 
                         #nocs_obj = self.crop_segmask(record["nocs_map"], anno['bbox'], anno['segmentation'])
@@ -180,7 +181,7 @@ class RegisterDataset:
                     for anno in imgs_anns['annotations']:
                         if anno['image_id'] == v['id']:
                             jid = anno['jid']
-                            voxel = get_voxel(os.path.join(CONF.PATH.FUTURE3D, jid, 'model.binvox'), np.array(anno['3Dscale']))
+                            voxel = get_voxel(os.path.join(CONF.PATH.VOXELDATA, jid, 'model.binvox'), np.array(anno['3Dscale']))
                             cat_id = anno['category_id']
                             name = csv_dict[cat_id]
                             nocs_obj = self.crop_segmask(record["nocs_map"], anno['bbox'], anno['segmentation'])

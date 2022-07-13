@@ -126,7 +126,16 @@ class FrontTrainer(DefaultTrainer):
 
     @classmethod
     def do_test(cls, cfg, model, trainer, evaluate_voxnocs=False, evaluate_coco=False, save_img_pred=False, storage=None, mode='val',
-                vis=True, seq_len=125, classwise=True, nograph=False):
+                vis=False, seq_len=25, classwise=True, nograph=False):
+
+        '''
+        vis: for dvis visualisation of reconstruction and tracking results
+        seq_len: set to length of the input sequence
+        classwise: set to True for a per object class MOTA evaluation
+        mode: for testing set to 'test'
+        '''
+
+
         print('Evaluation starts...')
         results = OrderedDict()
 
@@ -164,12 +173,6 @@ class FrontTrainer(DefaultTrainer):
                 3: pd.DataFrame(), 4: pd.DataFrame(),
                 5: pd.DataFrame(), 6: pd.DataFrame()
             }
-            '''
-            if resume_chkpt:
-                mota_df = pd.read_excel('mota.xlsx')
-                start_idx = mota_df.last_valid_index()
-                mota_df = mota_df.iloc[:, 1:]
-            '''
 
             for idx, data in enumerate(data_loader):
 
@@ -242,10 +245,6 @@ class FrontTrainer(DefaultTrainer):
                         window_seq_data = postprocess_dets(seq_inputs, seq_outputs, obj_threshold=0.35, iou_threshold=0.35,
                                                            mode=mode, vis=vis)
 
-                        #if None in window_seq_data:
-                        #    print('Sequence {} contains image with no predicted objects skipping ...'.format(seq_name))
-                        #    continue
-
                         window_seq_data = [window_seq_data]
                         tracking_outputs, tracking_losses = trainer.process_batch_combined(window_seq_data, mode=mode, vis_pose=vis)
                         if not tracking_outputs: #todo might wanna remove this
@@ -317,10 +316,6 @@ class FrontTrainer(DefaultTrainer):
                         # Initialize new sequence
                         seq_outputs = [outputs[0]]
                         seq_inputs = [data[0]]
-
-                        #if None in window_seq_data:
-                        #    print('Sequence {} contains image with no predicted objects skipping ...'.format(seq_name))
-                        #    continue
 
                         window_seq_data = [window_seq_data]
                         tracking_outputs, tracking_losses = trainer.process_batch_combined(window_seq_data, mode=mode)
@@ -534,7 +529,7 @@ class FrontTrainer(DefaultTrainer):
                 # Losses Detection
                 losses = sum(loss_dict.values())
 
-                if (iteration + 1) % 100 == 0 and process_tracking:
+                if (iteration + 1) % 5 == 0 and process_tracking:
                     print('Iteration ', iteration+1,' of ', max_iter, ' , Training Loss Detection: ', losses.detach().cpu().item(),
                           ' , Training Loss Tracking: ', tracking_losses.detach().cpu().item())
 
@@ -617,7 +612,16 @@ def main(args, use_pretrained=True):
             model_path, resume=True
         )
 
-    FrontTrainer.do_train(cfg, model, resume=use_pretrained, img_count=img_count, eval_first=False, eval_only=False)
+
+    '''
+    Main Network training and evaluation function:
+    
+    Set training and evaluation parameters here:
+    eval_first: executes an evaluation run before training the end-to-end pipeline
+    eval_only: only executes evaluation for a validation or test run
+    resume: uses a pretrained Detection and Tracking network 
+    '''
+    FrontTrainer.do_train(cfg, model, resume=use_pretrained, img_count=img_count, eval_first=True, eval_only=False)
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()

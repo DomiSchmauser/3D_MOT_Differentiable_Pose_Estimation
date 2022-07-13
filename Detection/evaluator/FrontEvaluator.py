@@ -37,6 +37,9 @@ from Detection.utils.train_utils import crop_segmask, get_voxel, symmetry_smooth
 
 
 class FrontEvaluator(DatasetEvaluator):
+    '''
+    Evaluator class for a Detectron2 network pipeline evaluated on the MOTFront dataset
+    '''
 
     def __init__(
             self,
@@ -149,14 +152,6 @@ class FrontEvaluator(DatasetEvaluator):
             self._logger.warning("[COCOEvaluator] Did not receive valid predictions.")
             return {}
 
-        '''
-        if False:
-            PathManager.mkdirs(self._output_dir)
-            file_path = os.path.join(self._output_dir, "instances_predictions.pth")
-            with PathManager.open(file_path, "wb") as f:
-                torch.save(predictions, f)
-        '''
-
         self._results = OrderedDict()
         if "proposals" in predictions[0]:
             self._eval_box_proposals(predictions)
@@ -183,15 +178,6 @@ class FrontEvaluator(DatasetEvaluator):
 
     def _eval_predictions(self, predictions, batch_idx, save_img_pred):
         tasks = self._tasks
-
-        '''
-        if False:
-            file_path = os.path.join(self._output_dir, "coco_instances_results.json")
-            self._logger.info("Saving results to {}".format(file_path))
-            with PathManager.open(file_path, "w") as f:
-                f.write(json.dumps(coco_results))
-                f.flush()
-        '''
 
         if not self._do_evaluation:
             self._logger.info("Annotations are not available for evaluation.")
@@ -252,7 +238,8 @@ class FrontEvaluator(DatasetEvaluator):
         self._logger.info("Proposal metrics: \n" + create_small_table(res))
         self._results["box_proposals"] = res
 
-#--------------------------------------------------------------------------------------------------------------------------------------------
+#------------------------- Static functions ----------------------------------------------------------------------------
+
 def _evaluate_voxel(predictions, gt_data, class_mapping=None, thres=0.4, vis_vox=False, device=None, batch_idx=0):
 
     if device is None:

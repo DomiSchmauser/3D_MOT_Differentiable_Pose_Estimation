@@ -24,8 +24,7 @@ from baseconfig import CONF
 from Tracking import networks
 from Tracking import datasets
 from Tracking.utils.train_utils import check_pair, sec_to_hm_str, init_weights
-from Tracking.utils.eval_utils import get_precision, get_recall, get_f1, get_MOTA, get_mota_df
-#from Tracking.utils.vis_utils import visualise_tracking
+from Tracking.utils.eval_utils import get_mota_df
 from Tracking.datasets.siamese_dataset import construct_siamese_dataset, recompute_edge_features, compute_edge_emb, construct_siamese_dataset_vis, construct_siamese_dataset_office, compute_edge_emb_nogeo
 from Tracking.tracker.tracking_front import Tracker
 from Tracking.visualise.visualise import visualise_gt_sequence, visualise_pred_sequence
@@ -453,7 +452,7 @@ class Trainer:
     def process_batch(self, inputs, mode='train', vis_pose=False):
         '''
         Process batch:
-        1. Siamese Network encodes voxel grids in feature space and concat with Pose for object feature
+        1. Encodes voxel grids in feature space and concat with Pose for object feature
         2. Get active/non-active edges (TARGETS) by computing IoU pred and GT and compare GT object ids
         -> obj1 img1 with all obj img2, obj2 img1 with all obj img2
         3. Concat object features between consecutive frames -> feature vector of 2 x 16 object features

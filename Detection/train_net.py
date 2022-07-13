@@ -32,6 +32,9 @@ logger = logging.getLogger("front_logger")
 
 
 class FrontTrainer(DefaultTrainer):
+    '''
+    Main Detectron2 MOTFront network training class
+    '''
 
     @classmethod
     def build_evaluator_coco(cls, cfg, dataset_name, output_folder=None):
@@ -145,7 +148,7 @@ class FrontTrainer(DefaultTrainer):
                         writer.write()
                 periodic_checkpointer.step(iteration)
 
-## ------------------------------ Class methods end ------------------
+## ------------------------------ Static Functions --------------------------------------------------------------------
 def setup():
     TRAIN_IMG_DIR = CONF.PATH.DETECTTRAIN
     mapping_list, name_list = get_dataset_info(TRAIN_IMG_DIR)

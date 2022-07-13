@@ -6,16 +6,29 @@ from detectron2 import model_zoo
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
-# initialize config
-def init_cfg(num_classes, combined=False, office=False, office_train=False):
+# Initialize training config
+def init_cfg(num_classes, combined=False, run_test=False, office=False, office_train=False):
+    '''
+    Set parameters:
+    run_test: for final test run
+    eval_period: num iterations between each evaluation run
+    ims_per_batch: batch size
+    checkpoint period: save model after n iterations
+    base_lr & weight_decay: training setup
+    '''
 
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")) # Loads only backbone weights
 
+    # MOTFront Dataset
     if not office:
         cfg.DATASETS.TRAIN = ("front_train",)
-        cfg.DATASETS.TEST = ("front_val",)
-        #cfg.DATASETS.TEST = ("front_test",)
+        if not run_test:
+            cfg.DATASETS.TEST = ("front_val",)
+        else:
+            cfg.DATASETS.TEST = ("front_test",)
+
+    # Office Dataset
     else:
         cfg.DATASETS.TRAIN = ("office_train",)
         if office_train:
@@ -23,9 +36,8 @@ def init_cfg(num_classes, combined=False, office=False, office_train=False):
         else:
             cfg.DATASETS.TEST = ("office_inference",)
 
-
-    cfg.TEST.EVAL_PERIOD = 10000
-    cfg.TEST.IMG_SAVE_FREQ = 4 # Every 6th evaluation run save pred images to tensorboard
+    cfg.TEST.EVAL_PERIOD = 1000
+    cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False
 
@@ -50,14 +62,14 @@ def init_cfg(num_classes, combined=False, office=False, office_train=False):
     cfg.MODEL.ROI_HEADS.NAME = "VoxelNocsHeads"
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes
-    cfg.MODEL.ROI_HEADS.IOU_THRESHOLDS = [0.75] # Increases Training time extremely if from 0.75 to 0.5
+    cfg.MODEL.ROI_HEADS.IOU_THRESHOLDS = [0.75]
     cfg.MODEL.ROI_HEADS.POSITIVE_FRACTION = 0.20
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.1
 
     if not office:
-        cfg.MODEL.PIXEL_MEAN = [59.64, 61.96, 64.02]
+        cfg.MODEL.PIXEL_MEAN = [59.64, 61.96, 64.02] # MOTFront
     else:
-        cfg.MODEL.PIXEL_MEAN = [92.0080866, 98.01352945, 121.7431208] # office v2_29
+        cfg.MODEL.PIXEL_MEAN = [92.0080866, 98.01352945, 121.7431208] # office
 
     cfg.MODEL.PIXEL_STD = [1, 1, 1]
     cfg.MODEL.MASK_ON = True
@@ -90,10 +102,10 @@ def init_cfg(num_classes, combined=False, office=False, office_train=False):
     cfg.MODEL.ROI_NOCS_HEAD.NAME = 'NocsDecoder'
     cfg.MODEL.ROI_NOCS_HEAD.POOLER_RESOLUTION = 14
     cfg.MODEL.ROI_NOCS_HEAD.POOLER_TYPE = "ROIAlign"
-    cfg.MODEL.ROI_NOCS_HEAD.POOLER_SAMPLING_RATIO = 0 #2
+    cfg.MODEL.ROI_NOCS_HEAD.POOLER_SAMPLING_RATIO = 0
 
     # Solver Options
-    cfg.SOLVER.CHECKPOINT_PERIOD = 30 #save model each n iterations
+    cfg.SOLVER.CHECKPOINT_PERIOD = 3000 #save model each n iterations
     cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
     cfg.SOLVER.STEPS = []  # decay learning rate
     cfg.SOLVER.WARMUP_FACTOR = 1
@@ -101,9 +113,9 @@ def init_cfg(num_classes, combined=False, office=False, office_train=False):
     cfg.SOLVER.WARMUP_METHOD = "linear"
     cfg.SOLVER.GAMMA = 1
     cfg.SOLVER.WEIGHT_DECAY = 0.0005 # L2-Regularization
-    cfg.SOLVER.IMS_PER_BATCH = 4 # batchsize BS = 5 for combined since nice window size 25/5
-    cfg.SOLVER.BASE_LR = 0.008 #0.008 #0.01 - 0.005
-    cfg.SOLVER.MAX_ITER = 240000 #400000
+    cfg.SOLVER.IMS_PER_BATCH = 2 # Batch size
+    cfg.SOLVER.BASE_LR = 0.0008
+    cfg.SOLVER.MAX_ITER = 240000
 
     # Combined settings
     if combined:

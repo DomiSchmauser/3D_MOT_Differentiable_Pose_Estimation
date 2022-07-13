@@ -21,7 +21,7 @@ from Detection.inference.inference_utils import get_scale, project_segmask_F2F
 
 def postprocess_dets(inputs, outputs, obj_threshold=0.35, iou_threshold=0.35, mode='train', vis=False):
     '''
-    Postprocessing module:
+    Postprocessing module for end-to-end network training:
      - Crop GT bounding boxes (should be done only once at the start of the training)
      - Prune detections using objectness score and iou_overlap
      - Apply Umeyama for Pose Estimation

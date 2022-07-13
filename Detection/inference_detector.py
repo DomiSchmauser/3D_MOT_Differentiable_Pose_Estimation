@@ -62,6 +62,11 @@ def vis_inference_2(dataset_dicts, front_metadata):
 
 def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, img,
                     write_files=True, visualize_pose=False, visualize_voxel=False):
+    '''
+    Main Inference function: generates voxel and pose predictions and stores them together with meta data in a
+    per image hdf5 file
+    '''
+
 
     output = {}
 
@@ -75,11 +80,11 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
     gt_locations = []
     gt_compl_boxes = []
     gt_scales = []
-    gt_classes = [] #todo add GT classes
+    gt_classes = []
 
     # Crops GT 3D bounding box based on depth map per object
     for m, gt_3dbbox_ann in enumerate(
-            gt_annotations['3Dbbox']):  # number of gt_instances #todo add all GT info already here
+            gt_annotations['3Dbbox']):  # number of gt_instances
 
         segmap = gt_annotations['segmentation'][m]
         gt_id = int(gt_annotations['obj_id'][m])
@@ -134,7 +139,6 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
     rotation_diff = []
     rm_indicies = []  # Broken objects which will be removed from the predictions
 
-    # todo if predicted voxels not in instances set predictions to 0
     if instances.has('pred_voxels'):
         voxels = instances.get('pred_voxels').sigmoid() # num_instances x 32 x 32 x 32
         voxels[voxels >= 0.5] = 1
@@ -197,7 +201,6 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
                     cv2.waitKey(0)
                     '''
 
-
                     # Noc2World Transforms, Rotation includes scale!!
                     global_rot, global_trans, global_scale, pred_3d_bbox, \
                     gt_pointcloud, pred_pointcloud = run_pose(reshape_nocs, depth, campose, bin_masks[i, :, :], abs_bbox, gt_3d_box=gt_bbox_loc, use_depth_box=True)
@@ -223,7 +226,6 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
                     global_rot, global_trans, global_scale, pred_3d_bbox, \
                     gt_pointcloud, pred_pointcloud = run_pose(gt_nocs, depth, campose, bin_masks[i, :, :], abs_bbox, gt_pc=nocs_pcd, gt_3d_box=gt_bbox_loc)
                     '''
-
 
                     # Visualize Pose Estimation
                     if visualize_pose and gt_pointcloud is not None:
@@ -289,10 +291,6 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
                     # Rotation
                     theta = get_rotation_diff(gt_rotation, unscaled_rot) #cad2world
                     rotation_diff.append(theta)
-
-                    # For Debugging
-                    #if idx == 0:
-                    #    print('ROT :', theta, 'DIST:', dist, 'DIST Box:', dist_box, 'CLS', gt_clsobj)
 
                     rotations.append(euler)
                     translations.append(global_trans)
@@ -421,11 +419,15 @@ def make_pred(split, write_files=True, overwrite=False):
 
         hdf5_dir = os.path.join(CONF.PATH.TRACKDATA, split, seq)
 
+        if not os.path.exists(os.path.join(CONF.PATH.TRACKDATA, split)):
+            os.mkdir(os.path.join(CONF.PATH.TRACKDATA, split))
+
         if not overwrite and os.path.exists(hdf5_dir):
             continue
 
         if not os.path.isdir(hdf5_dir):
             os.mkdir(hdf5_dir)
+
         imgs = [f for f in os.listdir(os.path.abspath(png_path)) if not 'json' in f and not 'nocs' in f]
         imgs.sort()
 
@@ -449,7 +451,7 @@ def make_pred(split, write_files=True, overwrite=False):
                     gt_annotations['3Dbbox'].append(np.array(img_anno["3Dbbox"]))
                     gt_annotations['2Dbbox'].append(img_anno["bbox"])
                     gt_annotations['segmentation'].append(img_anno["segmentation"])
-                    gt_annotations['voxel'].append(get_voxel(os.path.join(CONF.PATH.FUTURE3D, img_anno['jid'], 'model.binvox'), np.array(img_anno['3Dscale'])))
+                    gt_annotations['voxel'].append(get_voxel(os.path.join(CONF.PATH.VOXELDATA, img_anno['jid'], 'model.binvox'), np.array(img_anno['3Dscale'])))
                     gt_annotations['voxel_jid'].append(img_anno['jid'])
                     gt_annotations['3Dloc'].append(add_halfheight(img_anno['3Dloc'].copy(), img_anno['3Dbbox']))
                     gt_annotations['3Drot'].append(img_anno['3Drot'])
@@ -457,10 +459,10 @@ def make_pred(split, write_files=True, overwrite=False):
                     gt_annotations['cls'].append(img_anno['category_id'])
                     gt_annotations['obj_id'].append(img_anno['id'])
 
-            # Load depth and Campose
+            # Load Depth and Campose
             hdf5_path = os.path.join(data_dir, seq, str(i) + '.hdf5')
             depth, campose = load_hdf5(hdf5_path)
-            img = np.array(cv2.imread(os.path.join(png_path, img))) #todo is loaded as bgr
+            img = np.array(cv2.imread(os.path.join(png_path, img))) #is loaded as bgr
             instances = predictor(img)['instances']
 
             output = generate_output(instances, depth, campose, gt_annotations, hdf5_dir, i, img,
@@ -474,7 +476,7 @@ def make_pred(split, write_files=True, overwrite=False):
             except Exception: # scenes to delete since contain empty predictions
                 traceback.print_exc()
                 if os.path.exists('assert_scenes.txt'):
-                    append_write = 'a' # append if already exists
+                    append_write = 'a'
                 else:
                     append_write = 'w'
                 with open('assert_scenes.txt', append_write) as f:
@@ -483,19 +485,25 @@ def make_pred(split, write_files=True, overwrite=False):
 
         val.append(seq_pred)
 
-        if (seq_idx + 1) % 50 == 0: # print after every 100 sequences
+        if (seq_idx + 1) % 50 == 0:
             print('Inference Results {} after {} sequences:'.format(split, seq_idx+1))
             log_results(val)
 
     return val
 
 if __name__=="__main__":
+    '''
+    Inference of the Detection, Reconstruction and Pose Estimation Pipeline
+     - Loads a pretrained network (best_model.pth) from the model folder
+     - Stores inference results in the predicted_data folder in a hdf5 format
+    '''
+
+    num_classes = 7  # Set to num classes the model is trained with
 
     TRAIN_IMG_DIR = CONF.PATH.DETECTTRAIN
     # Get mapping
     mapping_list, name_list = get_dataset_info(TRAIN_IMG_DIR)
     mapping_list, name_list = zip(*sorted(zip(mapping_list, name_list)))
-    num_classes = 7 #len(mapping_list) # num classes the model is trained with
     if isinstance(name_list, tuple):
         name_list = list(name_list)
 
@@ -508,9 +516,8 @@ if __name__=="__main__":
     RegisterDataset = RegisterDataset(mapping_list, name_list)
     RegisterDataset.reg_dset()
 
-    split = "train"
+    split = "test"
 
-    # Get Val set
     dataset_dicts = RegisterDataset.get_front_dicts(os.path.join(TRAIN_IMG_DIR[:-6], split))
     if split == 'val':
         front_metadata = MetadataCatalog.get("front_val")
@@ -520,7 +527,7 @@ if __name__=="__main__":
         front_metadata = MetadataCatalog.get("front_test")
 
     # Visualize Segmentation predictions
-    #vis_inference_2(dataset_dicts, front_metadata)
+    #vis_inference(dataset_dicts, front_metadata)
 
     # Make predictions
     metrics = make_pred(split, write_files=True, overwrite=True)

@@ -29,19 +29,15 @@ from Detection.utils.train_utils import crop_segmask, get_voxel
 __all__ = ["VoxNocsMapper", "VoxMapper"]
 
 class VoxNocsMapper:
+    '''
+    Dataset mapper class to handle MOTFront data with a Detectron2 network training pipeline with Voxel and NOCs head
+    '''
 
-    def __init__(
-            self,
-            cfg,
-            use_instance_mask: bool = False,
-            instance_mask_format: str = "polygon",
-            recompute_boxes: bool = False,
-            is_train=True,
-            dataset_names=None,
-    ):
+    def __init__(self, cfg, use_instance_mask: bool = False, instance_mask_format: str = "polygon",
+            recompute_boxes: bool = False, is_train=True, dataset_names=None,):
+
         if recompute_boxes:
             assert use_instance_mask, "recompute_boxes requires instance masks"
-        # fmt: off
         self.is_train = is_train
         self.augmentations = None  # list with augmentations NOT IMPLEMENTED YET
         self.cfg = cfg
@@ -58,10 +54,7 @@ class VoxNocsMapper:
         self.voxel_on = cfg.MODEL.VOXEL_ON
         self.nocs_on = cfg.MODEL.NOCS_ON
 
-
     def _transform_annotations(self, dataset_dict, transforms, image_shape):
-
-
         annos = [
             utils.transform_instance_annotations(
                 obj, transforms, image_shape, keypoint_hflip_indices=None
@@ -87,9 +80,6 @@ class VoxNocsMapper:
         aug_input = T.AugInput(image, sem_seg=sem_seg_gt)
         transforms = self.augmentations(aug_input)
         image, sem_seg_gt = aug_input.image, aug_input.sem_seg
-
-        #image, transforms = T.apply_transform_gens(self.augmentations, image)
-
         image_shape = image.shape[:2]  # h, w
 
         dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1))) # C x H x W
@@ -188,7 +178,6 @@ class VoxNocsMapper:
         bin_mask = gm.polygons_to_mask(segmap)
         binary_mask = bin_mask[:, :]
         crop_im = np.multiply(depth_img, binary_mask)
-        #crop_im[crop_im == 0] = 255
         cropped_im = np.array(crop_im[int(abs_bbox[1]):int(abs_bbox[3]),int(abs_bbox[0]):int(abs_bbox[2])])
 
         return torch.from_numpy(cropped_im).to(torch.float32)
@@ -204,6 +193,9 @@ class VoxNocsMapper:
 
 
 class VoxMapper:
+    '''
+        Dataset mapper class to handle MOTFront data with a Detectron2 network training pipeline with Voxel head
+    '''
 
     def __init__(
             self,
@@ -262,8 +254,6 @@ class VoxMapper:
         aug_input = T.AugInput(image, sem_seg=sem_seg_gt)
         transforms = self.augmentations(aug_input)
         image, sem_seg_gt = aug_input.image, aug_input.sem_seg
-
-        #image, transforms = T.apply_transform_gens(self.augmentations, image)
 
         image_shape = image.shape[:2]  # h, w
 
