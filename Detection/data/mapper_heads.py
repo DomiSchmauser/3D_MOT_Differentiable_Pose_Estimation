@@ -53,6 +53,9 @@ class VoxNocsMapper:
         self.dataset_names = dataset_names
         self.voxel_on = cfg.MODEL.VOXEL_ON
         self.nocs_on = cfg.MODEL.NOCS_ON
+        self.use_gt_depth = cfg.MODEL.USE_DEPTH
+        self.img_width = cfg.INPUT.MAX_SIZE_TEST
+        self.img_height = cfg.INPUT.MIN_SIZE_TEST
 
     def _transform_annotations(self, dataset_dict, transforms, image_shape):
         annos = [
@@ -91,6 +94,11 @@ class VoxNocsMapper:
 
         nocs_map = self.get_nocs(dataset_dict["nocs_map"])
         depth_map = self.load_hdf5(dataset_dict["depth_map"])
+        campose = dataset_dict["campose"]
+        boxes_3d = dataset_dict["3dboxes"]
+        rotations = dataset_dict["rotations"]
+        locations = dataset_dict["locations"]
+        scales = dataset_dict["3dscales"]
 
         dataset_dict["depth_map"] = depth_map
         dataset_dict["nocs_map"] = nocs_map
@@ -106,6 +114,28 @@ class VoxNocsMapper:
 
         if "annotations" in dataset_dict:
             self._transform_annotations(dataset_dict, transforms, image_shape)
+            max_height, max_width = self.get_max_dims(dataset_dict['annotations'])
+
+            if self.use_gt_depth:
+                gt_depth = []
+                for anno in dataset_dict['annotations']:
+                    width = anno['depth'].shape[1]
+                    height = anno['depth'].shape[0]
+                    p2d = (0, max_width - width, 0, max_height - height)  # pad image to right, from last dim to first dim
+                    depth_crop = torch.unsqueeze(anno['depth'], 0)
+                    padded_crop = F.pad(depth_crop, p2d, "constant", 300)  # 300 not a pixel value # 1 x maxH x maxW
+                    gt_depth.append(padded_crop)
+
+                gt_depth = torch.cat(gt_depth, dim=0)
+                dataset_dict['instances'].set('gt_depth', gt_depth)
+
+                # Set campose and 3dbbox for NOCS backprojection
+                repeat_factor = gt_depth.shape[0]
+                campose = np.expand_dims(campose, axis=0)
+                campose = torch.from_numpy(np.repeat(campose, repeat_factor, axis=0))
+                dataset_dict['instances'].set('gt_campose', campose)
+
+                # Set campose and 3dbbox for NOCS backprojection
 
             if self.voxel_on:
                 count = 0
@@ -120,7 +150,6 @@ class VoxNocsMapper:
                 dataset_dict['instances'].set('gt_voxels', gt_voxels)
 
             if self.nocs_on:
-                max_height, max_width = self.get_max_dims(dataset_dict['annotations'])
                 count = 0
                 for anno in dataset_dict['annotations']:
                     width = anno['nocs'].shape[1]

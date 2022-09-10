@@ -64,7 +64,7 @@ class RegisterDataset:
                 record["height"] = v['height']
                 record["width"] = v['width']
                 # record["nocs_map"] = self.get_nocs(v["file_name"], img_path, folder)
-                # record["depth_map"], record['campose'] = self.load_hdf5(depth_name)
+                #record["depth_map"], record['campose'] = self.load_hdf5(depth_name)
                 record["nocs_map"] = filename.replace('rgb', 'nocs')
                 record["depth_map"] = depth_name
                 record["campose"] = self.load_campose(depth_name)

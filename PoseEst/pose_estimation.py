@@ -249,7 +249,7 @@ def run_pose(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_pc=None
     depth: full depth 240 x 320 = H x W
     campose: 4x4 homogeneous camera matrix
     bin_mask: binary segmentation mask 240 x 320, predicted
-    abs_bbox: bounding box in absolute coordinates XYXY
+    abs_bbox: bounding box in absolute coordinates XYXY, predicted
     use_depth_box: use 3D bounding box of the depth pointcloud for IoU Matching
     '''
 

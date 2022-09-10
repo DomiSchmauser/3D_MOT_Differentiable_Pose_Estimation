@@ -153,7 +153,7 @@ class VoxelNocsHeads(StandardROIHeads):
 
         if self.training:
             # The loss is only defined on positive proposals.
-            proposals, _ = select_foreground_proposals(instances, self.num_classes)
+            proposals, _ = select_foreground_proposals(instances, self.num_classes) # gt instances
             proposal_boxes = [x.proposal_boxes for x in proposals]
 
             losses = {}

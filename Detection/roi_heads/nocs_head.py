@@ -11,6 +11,7 @@ from typing import Dict
 import sys
 sys.path.append('..') #Hack add ROOT DIR
 from Detection.utils.train_utils import init_weights, symmetry_smooth_l1_loss, symmetry_bin_loss, crop_nocs, nocs_prob_to_value
+from PoseEst.pose_estimation import run_pose
 
 import matplotlib.pyplot as plt
 
@@ -43,6 +44,8 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
         gt_classes_per_image = instances_per_image.gt_classes.to(dtype=torch.int64)
         gt_boxes_per_image = instances_per_image.gt_boxes
         gt_nocs_per_image = instances_per_image.gt_nocs
+        gt_depth_objs = instances_per_image.gt_depth
+        gt_campose = instances_per_image.gt_campose
 
         for i in range(start_instance, end_instance):
 
@@ -105,6 +108,17 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
                     pred_patch = roi_align(torch.unsqueeze(pred_nocs.to(device=device), dim=0), tmp_box,
                                            output_size=(patch_heigth, patch_width), aligned=True)
                     pred_patch = torch.squeeze(pred_patch, dim=0)  # C x H x W of predicted box
+                    reshaped_patch = pred_patch.permute(1, 2, 0).contiguous()  # HxWxC
+
+                    # Pose Predictions
+                    gt_depth = gt_depth_objs[idx_max_iou, :, :]  # H x W
+                    campose = gt_campose[idx_max_iou, :, :]  # 4 x 4
+                    global_rot, global_trans, global_scale, _, _, _ = \
+                        run_pose(reshaped_patch, gt_depth, campose, bin_masks[i, :, :],
+                                    abs_pred_box, gt_3d_box=gt_bbox_loc, use_depth_box=True)
+
+
+
 
                     # Full image patches
                     full_patch = torch.zeros(3, 240, 320)

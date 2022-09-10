@@ -59,6 +59,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     cfg.INPUT.FORMAT = "BGR" # Image input format -> will be transformed to rgb in mapper heads
 
     # ROI HEADS
+    cfg.MODEL.USE_DEPTH = True # Use depth map for voxel predictions
     cfg.MODEL.ROI_HEADS.NAME = "VoxelNocsHeads"
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = num_classes

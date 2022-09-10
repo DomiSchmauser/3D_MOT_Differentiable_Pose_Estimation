@@ -23,7 +23,7 @@ from Detection.utils.train_utils import init_weights, balanced_BCE_loss
 ROI_VOXEL_HEAD_REGISTRY = Registry("ROI_VOXEL_HEAD")
 
 
-def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thres=0.5):
+def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thres=0.5, use_voxel_refiner=True):
     '''
     Calculate BCE loss between predicted 32³ voxel grid and GT voxel grid if IoU larger threshold
     '''
@@ -42,6 +42,7 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
         end_instance = start_instance + len(instances_per_image)
 
         gt_voxel_logits = instances_per_image.gt_voxels.to(dtype=torch.float)
+        gt_depth_objs = instances_per_image.gt_depth
         gt_boxes_per_image = instances_per_image.gt_boxes
 
         for i in range(start_instance, end_instance):
@@ -61,6 +62,13 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
             if max_iou >= iou_thres:
 
                 gt_voxel = gt_voxel_logits[idx_max_iou,:,:,:]
+                gt_depth = gt_depth_objs[idx_max_iou, :, :] # H x W
+                gt_box = gt_boxes_per_image[idx_max_iou]
+
+                if use_voxel_refiner:
+                    pass
+                    #pred_voxel = voxel_refinement(pred_voxel, gt_depth)
+
                 voxel_iou = compute_voxel_iou(pred_voxel, gt_voxel)
                 mean_voxel_iou.append(voxel_iou)
                 loss_gt_voxels.append(torch.unsqueeze(gt_voxel, dim=0))
@@ -82,7 +90,7 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
     return voxel_loss, gt_voxels
 
 
-def voxel_inference(pred_voxel_logits, pred_instances): # shape Num obj x 1 x D x H x W, Num img x Instance class
+def voxel_inference(pred_voxel_logits, pred_instances, use_voxel_refiner=True): # shape Num obj x 1 x D x H x W, Num img x Instance class
 
     voxel_probs_pred = pred_voxel_logits
     num_boxes_per_image = [len(i) for i in pred_instances]
@@ -104,6 +112,40 @@ def voxel_inference(pred_voxel_logits, pred_instances): # shape Num obj x 1 x D 
             inst.pred_voxels = torch.tensor([]).cuda()
         else:
             inst.pred_voxels = torch.squeeze(prob, dim=1)  # (Num inst in 1 img, D, H, W)
+
+def voxel_refinement(voxel_prediction, gt_depth):
+    '''
+    Voxel grid refinement with GT depth information and previous depth prediction
+    '''
+    pass
+
+class Refiner(torch.nn.Module):
+    """
+    Voxel grid refinement network
+    """
+    def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
+        super(Decoder, self).__init__()
+
+        self.input_shape = input_shape
+
+        # Layer Definition
+        self.layer1 = torch.nn.Sequential(
+            torch.nn.ConvTranspose3d(784, 512, kernel_size=3, stride=1, bias=False, padding=1),
+            torch.nn.BatchNorm3d(512),
+            torch.nn.ReLU()
+        )
+
+    def forward(self, features):
+        """
+        """
+        num_obj = features.shape[0] #num of pred objects
+        if num_obj != 0:
+            gen_volume = features.view(num_obj, -1, 4, 4, 4)
+            #print(gen_volume.size())   # torch.Size([num_obj, 784, 4, 4, 4]
+        else:
+            gen_volume = torch.zeros([1, 1, 32, 32, 32])
+
+        return gen_volume
 
 
 class Decoder(torch.nn.Module):
@@ -143,7 +185,7 @@ class Decoder(torch.nn.Module):
     def forward(self, features):
         """
         """
-        num_obj = features.shape[0]
+        num_obj = features.shape[0] #num of pred objects
         if num_obj != 0:
             gen_volume = features.view(num_obj, -1, 4, 4, 4)
             #print(gen_volume.size())   # torch.Size([num_obj, 784, 4, 4, 4])
