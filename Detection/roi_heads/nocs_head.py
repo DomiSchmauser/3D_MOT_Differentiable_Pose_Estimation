@@ -146,11 +146,12 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
                     #                abs_pred_box, gt_3d_box=gt_bbox_loc.detach().cpu(), use_depth_box=True)
 
                     if pred_rot is not None:
-                        # 7 DoF Object Pose Loss using sampled points from complete object geometry
                         #pred_rot = torch.from_numpy(global_rot).to(device)
                         #pred_trans = torch.from_numpy(global_trans).to(device)
                         #pred_scale = torch.tensor(global_scale).to(device)
                         #pred_rot.requires_grad, pred_trans.requires_grad, pred_scale.requires_grad = True, True, True
+
+                        # 7 DoF Object Pose Loss using sampled points from complete object geometry
                         obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
                                                             pred_scale, obj_pc)
                     else:
@@ -180,7 +181,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
     total_loss = l1_loss + gen_pose_loss
     print('L1 :', l1_loss, ', POSE :', gen_pose_loss)
 
-    return gen_pose_loss, None
+    return total_loss, None
 
 def nocs_inference(pred_nocsmap, pred_instances, use_bin_loss=False, num_bins=32): # shape num obj 3x  28 x 28  (RGB), Num img x num obj ...
 
