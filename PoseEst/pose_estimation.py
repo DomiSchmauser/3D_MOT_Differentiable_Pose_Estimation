@@ -11,7 +11,36 @@ from detectron2.structures import BoxMode
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
-from PoseEst.pose_utils import estimateSimilarityTransform
+from PoseEst.pose_utils import estimateSimilarityTransform, umeyama_torch
+
+def backproject_torch(depth, intrinsics, bin_mask, device=None):
+    '''
+    Backproject depth map to camera space
+    Returns: Depth PC in camspace, used idxs in pixel space
+    '''
+
+    intrinsics_inv = torch.linalg.inv(intrinsics)
+    non_zero_mask = (depth > 0)
+    final_instance_mask = torch.logical_and(bin_mask.to(device), non_zero_mask)
+
+    idxs = torch.tensor(final_instance_mask).nonzero()
+
+    grid = torch.cat([torch.unsqueeze(idxs[:,1], dim=-1), torch.unsqueeze(idxs[:,0], dim=-1)], dim=-1).T #2, len
+
+    length = grid.shape[1]
+    ones = torch.ones([1, length]).to(device)
+    uv_grid = torch.cat((grid, ones), dim=0) # [3, num_pixel]
+
+    xyz = intrinsics_inv @ uv_grid # [3, num_pixel]
+    xyz = xyz.T  # [num_pixel, 3]
+
+    z = depth[idxs[:,0], idxs[:,1]]
+
+    pts = xyz * z[:, None] / xyz[:, -1:]
+    pts[:, 1] = -pts[:, 1]
+    pts[:, 2] = -pts[:, 2]
+
+    return pts, idxs
 
 def backproject(depth, intrinsics, bin_mask):
     '''
@@ -55,6 +84,19 @@ def transform_pc(scale, rot, trans, pc):
     coord_pts_rotated = coord_pts_rotated.transpose()
 
     return coord_pts_rotated
+
+def cam2world_torch(cam_pc, campose):
+    '''
+    Transfrom PointCloud from camera space to world space
+    cam_pc: N points x XYZ(3)
+    '''
+    trans = campose[:3, 3:]
+    rot = campose[:3, :3]
+
+    world_pc = rot.to(torch.float32) @ cam_pc.T.to(torch.float32) + trans
+    world_pc = world_pc.T
+
+    return world_pc
 
 def cam2world(cam_pc, campose):
     '''
@@ -102,6 +144,35 @@ def sort_pointcloud(pc):
    sorted_pc = pc[sort_idxs]
 
    return sorted_pc
+
+def clean_depth_torch(depth_pts_ol, obj_gt_3Dbbox, campose):
+    '''
+    Clean depth map based on GT 3D bounding box, for e.g chairs with holes in backseat depth map is very bad
+    box format: 8x3
+    '''
+
+    gt_xmin = obj_gt_3Dbbox[:, 0].min()
+    gt_xmax = obj_gt_3Dbbox[:, 0].max()
+    gt_ymin = obj_gt_3Dbbox[:, 1].min()
+    gt_ymax = obj_gt_3Dbbox[:, 1].max()
+    gt_zmin = obj_gt_3Dbbox[:, 2].min()
+    gt_zmax = obj_gt_3Dbbox[:, 2].max()
+
+    copy_depth = torch.clone(depth_pts_ol)
+
+    copy_depth_world_pts = cam2world_torch(copy_depth, campose)
+
+    new_depth = []
+    indicies_used = []
+    for index, depth_cpt in enumerate(copy_depth_world_pts):
+        if depth_cpt[0] > gt_xmin and depth_cpt[0] < gt_xmax and depth_cpt[1] > gt_ymin and depth_cpt[1] < gt_ymax \
+                and depth_cpt[2] > gt_zmin and depth_cpt[2] < gt_zmax:
+            new_depth.append(torch.unsqueeze(depth_pts_ol[index], dim=-1))
+            indicies_used.append(index)
+
+    depth_no_ol = torch.cat(new_depth, dim=-1)
+
+    return depth_no_ol, indicies_used
 
 
 def clean_depth(depth_pts_ol, obj_gt_3Dbbox, campose):
@@ -241,6 +312,85 @@ def run_crop_3dbbox(depth, campose, gt_3Dbbox, gt_2Dbbox, gt_bin_mask): #per Obj
         o3d.visualization.draw_geometries([depth_pc_obj, crop_box, full_box, nocs_origin])
 
     return cropped_gt_3Dbbox
+
+def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_pc=None, gt_3d_box=None, use_depth_box=True,
+                   device=None):
+    '''
+    Pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
+    TORCH IMPLEMENTATION FOR BACKPROP
+    nocs: predicted nocs map, shape of patch format HxWxC in RGB, normalized between 0 and 1
+    depth: full depth 240 x 320 = H x W
+    campose: 4x4 homogeneous camera matrix
+    bin_mask: binary segmentation mask 240 x 320, predicted
+    abs_bbox: bounding box in absolute coordinates XYXY, predicted
+    use_depth_box: use 3D bounding box of the depth pointcloud for IoU Matching
+    '''
+
+    # Zero pad depth image
+    depth_pad = torch.zeros((240, 320)).to(device)
+    depth_pad[int(abs_bbox[1]):int(abs_bbox[3]), int(abs_bbox[0]):int(abs_bbox[2])] = depth[int(abs_bbox[1]):int(abs_bbox[3]), int(abs_bbox[0]):int(abs_bbox[2])]
+    depth = depth_pad
+
+    # Zero pad nocs image
+    nocs_pad = torch.zeros((240, 320, 3)).to(device)
+    nocs_pad[int(abs_bbox[1]):int(abs_bbox[3]), int(abs_bbox[0]):int(abs_bbox[2]), :] = nocs
+    nocs = nocs_pad
+
+    img_width = depth.shape[1]
+    img_height = depth.shape[0]
+
+    cx = (img_width / 2) - 0.5  # 0,0 is center top-left pixel -> -0,5
+    cy = (img_height / 2) - 0.5  # 0,0 is center top-left pixel -> -0,5
+
+    fx = 292.87803547399 # focal length from blenderproc # for fov=1 -> 292.8781
+    fy = 292.87803547399
+    intrinsics = torch.tensor([[fx, 0, cx], [0, fy, cy], [0, 0, 1]]).to(device)
+
+    depth_pts, idxs = backproject_torch(depth, intrinsics, bin_mask, device=device)
+
+    # Clean depth
+    if gt_3d_box is not None:
+        new_depth_pts, new_idxs = clean_depth_torch(depth_pts, gt_3d_box, campose) # clean depth for objects with holes
+        if len(new_idxs) > 20:
+            depth_pts = new_depth_pts.T
+            idxs_x = idxs[:,0][new_idxs]
+            idxs_y = idxs[:,1][new_idxs]
+            idxs = (idxs_x, idxs_y)
+
+    # Clean depth
+    clean_depth_pts = depth_pts
+    ind = list(np.arange(clean_depth_pts.shape[0]))
+
+    idxs_x = idxs[0][ind]
+    idxs_y = idxs[1][ind]
+
+    nocs_pts = nocs[idxs_x, idxs_y, :] - 0.5   # 0 centering -> back to cad space
+
+    cleaned_nocs_pts = nocs_pts
+
+    # RANSAC & Umeyama
+    outlier_thres = 1
+    if cleaned_nocs_pts.shape[0] == 0:
+        return None, None, None, None, None, None
+
+    '''
+    Scales, Rotation, Translation, _ = estimateSimilarityTransform(cleaned_nocs_pts, clean_depth_pts,
+                                                                              verbose=False, ratio_adapt=outlier_thres) # CAD2CAM
+    '''
+    Rotation, Scales, Translation, _ = umeyama_torch(cleaned_nocs_pts, clean_depth_pts)
+    if Scales is None:
+        return None, None, None, None, None, None
+
+    # Chain object to camera space and cam space to world space transformation matricies
+    obj_tocam = torch.eye(4).to(device) # CAD2Cam
+    obj_tocam[:3,:3] = torch.diag(Scales.repeat(3)) @ Rotation.T #Rotation.T weirdly correct
+    obj_tocam[:3,3] = Translation
+    global_transform = campose.to(torch.float32) @ obj_tocam.to(torch.float32) # Cam2World @ CAD2Cam = CAD2World
+    global_trans = global_transform[:3,3]
+    global_rot = global_transform[:3,:3] # Scale already embedded into Rotation
+    global_scale = Scales
+
+    return global_rot, global_trans, global_scale, None, None, None
 
 def run_pose(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_pc=None, gt_3d_box=None, use_depth_box=True):
     '''

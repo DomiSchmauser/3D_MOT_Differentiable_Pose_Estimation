@@ -124,7 +124,7 @@ class Refiner(torch.nn.Module):
     Voxel grid refinement network
     """
     def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
-        super(Decoder, self).__init__()
+        super(Refiner, self).__init__()
 
         self.input_shape = input_shape
 

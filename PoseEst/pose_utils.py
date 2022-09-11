@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import torch
 
 
 def evaluateModel(OutTransform, SourceHom, TargetHom, PassThreshold):
@@ -59,6 +60,44 @@ def estimateSimilarityUmeyama(SourceHom, TargetHom):
     OutTransform[:3, 3] = Translation
 
     return Scales, Rotation, Translation, OutTransform
+
+
+def umeyama_torch(from_points, to_points):
+    assert len(from_points.shape) == 2, \
+        "from_points must be a m x n array"
+    assert from_points.shape == to_points.shape, \
+        "from_points and to_points must have the same shape"
+
+    N, m = from_points.shape
+
+    mean_from = from_points.mean(axis=0)
+    mean_to = to_points.mean(axis=0)
+
+    delta_from = from_points - mean_from  # N x m
+    delta_to = to_points - mean_to  # N x m
+
+    sigma_from = (delta_from * delta_from).sum(axis=1).mean()
+    sigma_to = (delta_to * delta_to).sum(axis=1).mean()
+
+    cov_matrix = delta_to.T @ (delta_from) / N
+    # with timer.Timer('svd'):
+    # svd = GESVD()
+    U, d, V = torch.svd(cov_matrix)  # svd(cov_matrix) #
+    V_t = V.T
+    cov_rank = torch.matrix_rank(cov_matrix)
+    S = torch.eye(m).to(from_points)
+
+    if cov_rank >= m - 1 and torch.det(cov_matrix) < 0:
+        S[m - 1, m - 1] = -1
+    elif cov_rank < m - 1:
+        # raise ValueError("colinearility detected in covariance matrix:\n{}".format(cov_matrix))
+        return S, 1 / sigma_from, mean_to - 1 / sigma_from * mean_from
+
+    R = U @ S @ V_t
+    c = (d * S.diag()).sum() / sigma_from
+    t = mean_to - (c * R) @ mean_from
+
+    return R, c, t, None
 
 def getRANSACInliers(SourceHom, TargetHom, MaxIterations=100, PassThreshold=200, StopThreshold=1):
     '''

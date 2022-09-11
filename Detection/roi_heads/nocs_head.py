@@ -13,10 +13,9 @@ from typing import Dict
 import sys
 sys.path.append('..') #Hack add ROOT DIR
 from Detection.utils.train_utils import init_weights, symmetry_smooth_l1_loss, symmetry_bin_loss, crop_nocs, nocs_prob_to_value
-from Detection.utils.train_utils import  PoseLoss
+from Detection.utils.train_utils import PoseLoss
 from Detection.inference.inference_utils import vox2pc
-from PoseEst.pose_estimation import run_pose
-
+from PoseEst.pose_estimation import run_pose, run_pose_torch
 
 import matplotlib.pyplot as plt
 
@@ -138,16 +137,24 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
                     gt_voxel = gt_voxel_logits[idx_max_iou, :, : ,:]
                     obj_pc = vox2pc(gt_voxel)
 
-                    global_rot, global_trans, global_scale, _, _, _ = \
-                        run_pose(reshaped_patch.detach(), gt_depth.detach().cpu(), campose.detach().cpu().numpy(), gt_binmask,
-                                    abs_pred_box, gt_3d_box=gt_bbox_loc.detach().cpu(), use_depth_box=True)
+                    pred_rot, pred_trans, pred_scale, _, _, _ = \
+                        run_pose_torch(reshaped_patch, gt_depth, campose,
+                                gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_depth_box=True, device=device)
 
-                    # 7 DoF Object Pose Loss using sampled points from complete object geometry
-                    pred_rot = torch.from_numpy(global_rot).to(device)
-                    pred_trans = torch.from_numpy(global_trans).to(device)
-                    pred_scale = torch.tensor(global_scale).to(device)
-                    obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
-                                                        pred_scale, obj_pc) #needs grad fn
+                    #global_rot, global_trans, global_scale, _, _, _ = \
+                    #    run_pose(reshaped_patch.detach(), gt_depth.detach().cpu(), campose.detach().cpu().numpy(), gt_binmask,
+                    #                abs_pred_box, gt_3d_box=gt_bbox_loc.detach().cpu(), use_depth_box=True)
+
+                    if pred_rot is not None:
+                        # 7 DoF Object Pose Loss using sampled points from complete object geometry
+                        #pred_rot = torch.from_numpy(global_rot).to(device)
+                        #pred_trans = torch.from_numpy(global_trans).to(device)
+                        #pred_scale = torch.tensor(global_scale).to(device)
+                        #pred_rot.requires_grad, pred_trans.requires_grad, pred_scale.requires_grad = True, True, True
+                        obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
+                                                            pred_scale, obj_pc)
+                    else:
+                        obj_pose_loss = 0
 
                     # Full image patches
                     full_patch = torch.zeros(3, 240, 320)
@@ -171,8 +178,9 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
     l1_loss = l1_loss * l1_loss_weight / num_instances_overlap
     gen_pose_loss = gen_pose_loss * pose_loss_weight / num_instances_overlap
     total_loss = l1_loss + gen_pose_loss
+    print('L1 :', l1_loss, ', POSE :', gen_pose_loss)
 
-    return total_loss, None
+    return gen_pose_loss, None
 
 def nocs_inference(pred_nocsmap, pred_instances, use_bin_loss=False, num_bins=32): # shape num obj 3x  28 x 28  (RGB), Num img x num obj ...
 
