@@ -1,8 +1,11 @@
 import sys, os
+import mathutils
+from random import randint
 
 import torch
 from torch.nn import init
 from torch.nn import functional as F
+from torch.nn.modules.loss import _Loss
 import trimesh
 from scipy.interpolate import interpn
 import numpy as np
@@ -13,6 +16,49 @@ from detectron2.utils.visualizer import GenericMask
 
 sys.path.append('..') #Hack add ROOT DIR
 from BlenderProc.utils import binvox_rw
+
+
+def pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=500, device=None):
+
+    def get_homog_mat(rot, loc, scale):
+        homog_mat = torch.zeros((4, 4)).to(device)
+        homog_mat[:3, :3] = torch.diag(scale) @ rot.T
+        homog_mat[:3, 3] = loc
+        homog_mat[3, 3] = 1
+        return homog_mat
+
+    def makelist(count, max_int):
+        return [randint(0, max_int) for _ in range(count)]
+
+    num_points = min(max_points, obj_pc.shape[0])
+    idxs = makelist(num_points, obj_pc.shape[0]-1)
+    sample_points = obj_pc[idxs]
+
+    gt_mat = get_homog_mat(gt_rot, gt_loc, gt_scale)
+    pred_mat = get_homog_mat(pred_rot, pred_loc, pred_scale.repeat(3))
+
+    gt_points = gt_mat[:3, :3] @ sample_points.T + gt_mat[:3, 3:]
+    gt_points = gt_points.T
+
+    pred_points = pred_mat[:3, :3] @ sample_points.T + pred_mat[:3, 3:]
+    pred_points = pred_points.T
+
+    dis = torch.mean(torch.norm((pred_points - gt_points), dim=-1))
+
+    return dis
+
+class PoseLoss(_Loss):
+    '''
+    7-DoF pose loss using sampled object points from the complete object voxel grid
+    '''
+
+    def __init__(self, max_points=500):
+        super(PoseLoss, self).__init__(True)
+        self.max_points = max_points
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    def forward(self, gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc):
+        return pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=self.max_points, device=self.device)
 
 
 def balanced_BCE_loss(gt_voxels, pred_voxels):
@@ -273,6 +319,14 @@ def rescale_voxel(unscaled_voxel, scale, debug_mode=False):
         plt.show()
 
     return rescale_
+
+def polygon_to_binmask(polygon_mask):
+
+    gm = GenericMask(polygon_mask, 240, 320)
+    bin_mask = gm.polygons_to_mask(polygon_mask)
+    binary_mask = bin_mask[:, :, None]
+    return binary_mask
+
 
 def crop_segmask(nocs_img, bbox, segmap, color_depth_max=65535):
     '''

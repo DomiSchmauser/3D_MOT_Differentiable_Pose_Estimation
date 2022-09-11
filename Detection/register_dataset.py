@@ -113,6 +113,10 @@ class RegisterDataset:
                             "scale": scale,
                             "jid": jid,
                             "id": object_id,
+                            "3d_box": np.array(anno['3Dbbox']),
+                            "3d_rot": anno['3Drot'],
+                            "3d_scale": scale,
+                            "3d_loc": self.add_halfheight(anno['3Dloc'].copy(), anno['3Dbbox']),
                         }
                         objs.append(obj)
                         segmap_store.append(anno['segmentation'])

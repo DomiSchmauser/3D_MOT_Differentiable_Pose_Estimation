@@ -107,6 +107,18 @@ def project_segmask(pred_bin_mask, abs_bbox, depth, campose):
 
     return depth_world
 
+def vox2pc(voxel_grid):
+    """
+    Converts a voxel grid to a point cloud with according pose
+    voxel_grid: 32x32x32 tensor binary
+    """
+    nonzero_inds = np.nonzero(voxel_grid)[:-1]
+
+    points = nonzero_inds / 32 - 0.5
+    points = points
+    return points
+
+
 def convert_voxel_to_pc(voxel_grid, rot, trans, scale):
     '''
     Converts a voxel grid to a point cloud with according pose

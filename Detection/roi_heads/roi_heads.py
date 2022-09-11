@@ -71,6 +71,7 @@ class VoxelNocsHeads(StandardROIHeads):
 
         self.nocs_on = cfg.MODEL.NOCS_ON
         self.nocs_loss_weight = cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT
+        self.pose_loss_weight = cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT
         self.iou_threshold = cfg.MODEL.ROI_NOCS_HEAD.IOU_THRES
         self.use_bin_loss = cfg.MODEL.ROI_NOCS_HEAD.USE_BIN_LOSS
         self.num_bins = cfg.MODEL.ROI_NOCS_HEAD.NUM_BINS
@@ -206,7 +207,8 @@ class VoxelNocsHeads(StandardROIHeads):
                 nocs_map_rgb = self.nocs_head(nocs_features) # num obj x 3 x 28 x 28  (l1), num obj x num bins x 3 x 28 x 28 (bin)
                 src_boxes = cat([p.tensor for p in proposal_boxes]) #num obj x 4 format XYXY
                 loss_nocs, _ = nocs_loss(
-                    nocs_map_rgb, proposals, src_boxes, loss_weight=self.nocs_loss_weight, iou_thres=self.iou_threshold,
+                    nocs_map_rgb, proposals, src_boxes, l1_loss_weight=self.nocs_loss_weight,
+                    pose_loss_weight=self.pose_loss_weight, iou_thres=self.iou_threshold,
                     cls_mapping=self.class_mapping, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins
                 )
                 losses.update({"loss_nocs": loss_nocs})
