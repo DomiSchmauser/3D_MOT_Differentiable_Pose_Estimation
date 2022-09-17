@@ -14,6 +14,17 @@ def evaluateModel(OutTransform, SourceHom, TargetHom, PassThreshold):
 
     return Residual, InlierRatio, InlierIdx[0]
 
+def evaluateModel_torch(OutTransform, SourceHom, TargetHom, PassThreshold):
+
+    Diff = TargetHom - torch.matmul(OutTransform, SourceHom)
+    ResidualVec = torch.linalg.norm(Diff[:3, :], dim=0)
+    Residual = torch.linalg.norm(ResidualVec)
+    InlierIdx = torch.where(ResidualVec < PassThreshold)
+    nInliers = torch.count_nonzero(InlierIdx[0])
+    InlierRatio = nInliers / SourceHom.shape[1]
+
+    return Residual, InlierRatio, InlierIdx[0]
+
 def estimateSimilarityUmeyama(SourceHom, TargetHom):
     '''
     Procrustes analysis for pose fitting
@@ -56,19 +67,25 @@ def estimateSimilarityUmeyama(SourceHom, TargetHom):
     Translation = TargetHom[:3, :].mean(axis=1) - SourceHom[:3, :].mean(axis=1).dot(ScaleFact*Rotation)
 
     OutTransform = np.identity(4)
-    OutTransform[:3, :3] = ScaleMatrix @ Rotation # todo check if T is correct
+    OutTransform[:3, :3] = ScaleMatrix @ Rotation
     OutTransform[:3, 3] = Translation
 
     return Scales, Rotation, Translation, OutTransform
 
 
 def umeyama_torch(from_points, to_points):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     assert len(from_points.shape) == 2, \
         "from_points must be a m x n array"
     assert from_points.shape == to_points.shape, \
         "from_points and to_points must have the same shape"
 
-    N, m = from_points.shape
+    N, m = from_points.shape # N x 3
+
+    if m == 4:
+        from_points = from_points[:,:3]
+        to_points = to_points[:,:3]
+        m -= 1
 
     mean_from = from_points.mean(axis=0)
     mean_to = to_points.mean(axis=0)
@@ -97,7 +114,14 @@ def umeyama_torch(from_points, to_points):
     c = (d * S.diag()).sum() / sigma_from
     t = mean_to - (c * R) @ mean_from
 
-    return R, c, t, None
+    Scales = torch.tensor([c, c, c])
+    ScaleMatrix = torch.diag(Scales).to(device)
+
+    OutTransform = torch.eye(4).to(device)
+    OutTransform[:3, :3] = ScaleMatrix @ R
+    OutTransform[:3, 3] = t
+
+    return R, c, t, OutTransform
 
 def getRANSACInliers(SourceHom, TargetHom, MaxIterations=100, PassThreshold=200, StopThreshold=1):
     '''
@@ -121,6 +145,27 @@ def getRANSACInliers(SourceHom, TargetHom, MaxIterations=100, PassThreshold=200,
 
     return SourceHom[:, BestInlierIdx], TargetHom[:, BestInlierIdx], BestInlierRatio
 
+def getRANSACInliers_torch(SourceHom, TargetHom, MaxIterations=100, PassThreshold=200, StopThreshold=1, device=None):
+    '''
+    RANSAC Outlier Removal
+    '''
+
+    BestResidual = 1e10
+    BestInlierRatio = 0
+    BestInlierIdx = torch.arange(SourceHom.shape[1]).to(device)
+    for i in range(0, MaxIterations):
+        # Pick 10 random (but corresponding) points from source and target
+        RandIdx = torch.from_numpy(np.random.randint(SourceHom.shape[1], size=10)).to(device)
+        _, _, _, OutTransform = umeyama_torch(SourceHom[:, RandIdx].T, TargetHom[:, RandIdx].T)
+        Residual, InlierRatio, InlierIdx = evaluateModel_torch(OutTransform, SourceHom, TargetHom, PassThreshold)
+        if Residual < BestResidual:
+            BestResidual = Residual
+            BestInlierRatio = InlierRatio
+            BestInlierIdx = InlierIdx
+        if BestResidual < StopThreshold:
+            break
+
+    return SourceHom[:, BestInlierIdx], TargetHom[:, BestInlierIdx], BestInlierRatio
 
 def estimateSimilarityTransform(source: np.array, target: np.array, verbose=False, ratio_adapt = 1):
     SourceHom = np.transpose(np.hstack([source, np.ones([source.shape[0], 1])]))
@@ -146,6 +191,40 @@ def estimateSimilarityTransform(source: np.array, target: np.array, verbose=Fals
         return None, None, None, None
 
     Scales, Rotation, Translation, OutTransform = estimateSimilarityUmeyama(SourceInliersHom, TargetInliersHom)
+
+    if verbose:
+        print('BestInlierRatio:', BestInlierRatio)
+        print('Rotation:\n', Rotation)
+        print('Translation:\n', Translation)
+        print('Scales:', Scales)
+
+    return Scales, Rotation, Translation, OutTransform
+
+def estimateSimilarityTransform_torch(source: torch.tensor, target: torch.tensor, verbose=False, ratio_adapt = 1, device=None):
+    SourceHom = torch.hstack([source, torch.ones([source.shape[0], 1]).to(device)]).T
+    TargetHom = torch.hstack([target, torch.ones([source.shape[0], 1]).to(device)]).T
+
+    # Auto-parameter selection based on source-target heuristics
+    TargetNorm = torch.mean(torch.linalg.norm(target, dim=1))
+    SourceNorm = torch.mean(torch.linalg.norm(source, dim=1))
+    RatioTS = (TargetNorm / SourceNorm)
+    RatioST = (SourceNorm / TargetNorm)
+    PassT = RatioST*ratio_adapt if(RatioST>RatioTS) else RatioTS*ratio_adapt
+    StopT = PassT / 100
+    nIter = 100
+    if verbose:
+        print('Pass threshold: ', PassT)
+        print('Stop threshold: ', StopT)
+        print('Number of iterations: ', nIter)
+
+    SourceInliersHom, TargetInliersHom, BestInlierRatio = getRANSACInliers_torch(
+        SourceHom, TargetHom, MaxIterations=nIter, PassThreshold=PassT, StopThreshold=StopT, device=device)
+
+    if(BestInlierRatio < 0.1):
+        print('[ WARN ] - Something is wrong. Small BestInlierRatio: ', BestInlierRatio)
+        return None, None, None, None
+
+    Scales, Rotation, Translation, OutTransform = umeyama_torch(SourceInliersHom.T, TargetInliersHom.T)
 
     if verbose:
         print('BestInlierRatio:', BestInlierRatio)

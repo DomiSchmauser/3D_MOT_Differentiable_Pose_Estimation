@@ -11,7 +11,7 @@ from detectron2.structures import BoxMode
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
-from PoseEst.pose_utils import estimateSimilarityTransform, umeyama_torch
+from PoseEst.pose_utils import estimateSimilarityTransform, umeyama_torch, estimateSimilarityTransform_torch
 
 def backproject_torch(depth, intrinsics, bin_mask, device=None):
     '''
@@ -313,8 +313,7 @@ def run_crop_3dbbox(depth, campose, gt_3Dbbox, gt_2Dbbox, gt_bin_mask): #per Obj
 
     return cropped_gt_3Dbbox
 
-def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_pc=None, gt_3d_box=None, use_depth_box=True,
-                   device=None):
+def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, device=None, use_depth_box=True):
     '''
     Pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
     TORCH IMPLEMENTATION FOR BACKPROP
@@ -373,11 +372,10 @@ def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_p
     if cleaned_nocs_pts.shape[0] == 0:
         return None, None, None, None, None, None
 
-    '''
-    Scales, Rotation, Translation, _ = estimateSimilarityTransform(cleaned_nocs_pts, clean_depth_pts,
-                                                                              verbose=False, ratio_adapt=outlier_thres) # CAD2CAM
-    '''
-    Rotation, Scales, Translation, _ = umeyama_torch(cleaned_nocs_pts, clean_depth_pts)
+    #Rotation, Scales, Translation, _ = umeyama_torch(cleaned_nocs_pts, clean_depth_pts) # CAD2CAM
+    Rotation, Scales, Translation, _ = estimateSimilarityTransform_torch(cleaned_nocs_pts, clean_depth_pts,
+                                                                   verbose=False, ratio_adapt=outlier_thres, device=device)  # CAD2CAM
+
     if Scales is None:
         return None, None, None, None, None, None
 
