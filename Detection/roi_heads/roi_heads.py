@@ -10,6 +10,7 @@ from detectron2.data import MetadataCatalog
 from detectron2.utils.registry import Registry
 from roi_heads.voxel_head import (
     build_voxel_head,
+    build_voxel_refiner,
     voxel_inference,
     voxel_loss,
 )
@@ -45,6 +46,7 @@ class VoxelNocsHeads(StandardROIHeads):
 
         self.voxel_on = cfg.MODEL.VOXEL_ON
         self.voxel_loss_weight = cfg.MODEL.ROI_VOXEL_HEAD.LOSS_WEIGHT
+        self.use_refiner = cfg.MODEL.ROI_VOXEL_HEAD.USE_REFINER
 
         if not self.voxel_on:
             return
@@ -66,6 +68,7 @@ class VoxelNocsHeads(StandardROIHeads):
             channels=in_channels, width=voxel_pooler_resolution, height=voxel_pooler_resolution
         )
         self.voxel_head = build_voxel_head(cfg, shape)
+        self.voxel_refiner = build_voxel_refiner(cfg, shape)
 
     def _init_nocs_head(self, cfg, input_shape):
 
@@ -103,18 +106,19 @@ class VoxelNocsHeads(StandardROIHeads):
         """
 
         instances, losses = super().forward(images, features, proposals, targets) # forward method for default heads (BBOX, MASK) #proposals N = batchsize
-        del images, targets
+        del images
         if self.training:
+            del targets
             losses.update(self._forward_voxel(features, instances)) # features input data mapping feature map name to tensor, axis 0 = N num images
             losses.update(self._forward_nocs(features, instances))  # features input data mapping feature map name to tensor, axis 0 = N num images
             return [], losses
 
         else:
-            pred_instances = self.forward_with_given_boxes_voxnocs(features, instances)
+            pred_instances = self.forward_with_given_boxes_voxnocs(features, instances, depth=targets)
             return pred_instances, {}
 
 
-    def forward_with_given_boxes_voxnocs(self, features, instances):
+    def forward_with_given_boxes_voxnocs(self, features, instances, depth=None):
         """
         Use the given boxes in `instances` to produce other (non-box) per-ROI outputs.
         Args:
@@ -130,12 +134,12 @@ class VoxelNocsHeads(StandardROIHeads):
 
         assert instances[0].has("pred_boxes") and instances[0].has("pred_classes") and instances[0].has("pred_masks")
 
-        instances = self._forward_voxel(features, instances)
+        instances = self._forward_voxel(features, instances, depth=depth)
         instances = self._forward_nocs(features, instances)
 
         return instances
 
-    def _forward_voxel(self, features, instances):
+    def _forward_voxel(self, features, instances, depth=None):
         """
         Forward logic for the voxel branch.
         Args:
@@ -163,7 +167,8 @@ class VoxelNocsHeads(StandardROIHeads):
                 voxel_logits = self.voxel_head(voxel_features) #Num objs x 1 x 32 x 32 x 32, zeros for empty detection
                 src_boxes = cat([p.tensor for p in proposal_boxes])  # num obj x 4 format XYXY
                 loss_voxel, _ = voxel_loss(
-                    voxel_logits, proposals, src_boxes, loss_weight=self.voxel_loss_weight, iou_thres=self.iou_threshold
+                    voxel_logits, proposals, src_boxes, loss_weight=self.voxel_loss_weight, iou_thres=self.iou_threshold,
+                    use_refiner=self.use_refiner, refiner=self.voxel_refiner
                 )
                 losses.update({"loss_voxel": loss_voxel})
 
@@ -175,7 +180,7 @@ class VoxelNocsHeads(StandardROIHeads):
 
                 voxel_features = self.voxel_pooler(features, pred_boxes) # BS x 256 x 14 x 14
                 voxel_logits = self.voxel_head(voxel_features)
-                voxel_inference(voxel_logits, instances)
+                voxel_inference(voxel_logits, instances, use_refiner=self.use_refiner, refiner=self.voxel_refiner, depth=depth)
 
             return instances
 

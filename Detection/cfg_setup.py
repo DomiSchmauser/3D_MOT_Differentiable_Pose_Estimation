@@ -36,7 +36,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         else:
             cfg.DATASETS.TEST = ("office_inference",)
 
-    cfg.TEST.EVAL_PERIOD = 500
+    cfg.TEST.EVAL_PERIOD = 30
     cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False
@@ -84,6 +84,8 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         cfg.MODEL.ROI_VOXEL_HEAD.LOSS_WEIGHT = 0.015
 
     cfg.MODEL.ROI_VOXEL_HEAD.NAME = 'Pix2VoxDecoder'
+    cfg.MODEL.ROI_VOXEL_HEAD.REFINER_NAME = 'VoxRefiner'
+    cfg.MODEL.ROI_VOXEL_HEAD.USE_REFINER = True # Use voxel refinement branch with depth information
     cfg.MODEL.ROI_VOXEL_HEAD.POOLER_RESOLUTION = 14
     cfg.MODEL.ROI_VOXEL_HEAD.POOLER_TYPE = "ROIAlign"
     cfg.MODEL.ROI_VOXEL_HEAD.POOLER_SAMPLING_RATIO = 0
