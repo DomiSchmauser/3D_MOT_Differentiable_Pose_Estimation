@@ -120,7 +120,7 @@ class FrontTrainer(DefaultTrainer):
 
                 losses = sum(loss_dict.values())
 
-                if (iteration + 1) % 10 == 0:
+                if (iteration + 1) % 100 == 0:
                     print('Iteration ', iteration+1,' of ', max_iter, ' , Training Loss: ', losses.detach().cpu().item())
 
                 assert torch.isfinite(losses).all(), loss_dict
