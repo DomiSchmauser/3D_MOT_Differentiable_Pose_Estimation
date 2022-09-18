@@ -122,9 +122,9 @@ class FrontEvaluator(DatasetEvaluator):
                 self.gt_data['gt_nocs'].append(all_nocs)
                 self.gt_data['depth'].append(inp['depth_map'])
                 self.gt_data['campose'].append(inp['campose'])
-                self.gt_data['gt_3dboxes'].append(torch.tensor(inp['3dboxes']).to(self._cpu_device))
-                self.gt_data['gt_rotations'].append(torch.tensor(inp['rotations']).to(self._cpu_device))
-                self.gt_data['gt_locations'].append(torch.tensor(inp['locations']).to(self._cpu_device))
+                self.gt_data['gt_3dboxes'].append(torch.tensor(np.stack(inp['3dboxes'], axis=0)).to(self._cpu_device))
+                self.gt_data['gt_rotations'].append(torch.tensor(np.stack(inp['rotations'], axis=0)).to(self._cpu_device))
+                self.gt_data['gt_locations'].append(torch.tensor(np.stack(inp['locations'], axis=0)).to(self._cpu_device))
             if "proposals" in output:
                 prediction["proposals"] = output["proposals"].to(self._cpu_device)
             if len(prediction) > 1:

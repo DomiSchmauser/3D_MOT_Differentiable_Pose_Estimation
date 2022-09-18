@@ -101,7 +101,7 @@ def umeyama_torch(from_points, to_points):
     # svd = GESVD()
     U, d, V = torch.svd(cov_matrix)  # svd(cov_matrix) #
     V_t = V.T
-    cov_rank = torch.matrix_rank(cov_matrix)
+    cov_rank = torch.linalg.matrix_rank(cov_matrix)
     S = torch.eye(m).to(from_points)
 
     if cov_rank >= m - 1 and torch.det(cov_matrix) < 0:

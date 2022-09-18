@@ -139,7 +139,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
 
                     pred_rot, pred_trans, pred_scale, _, _, _ = \
                         run_pose_torch(reshaped_patch, gt_depth, campose,
-                                gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_depth_box=True, device=device)
+                                gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_RANSAC=False, device=device)
 
                     #global_rot, global_trans, global_scale, _, _, _ = \
                     #    run_pose(reshaped_patch.detach(), gt_depth.detach().cpu(), campose.detach().cpu().numpy(), gt_binmask,
@@ -179,7 +179,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
     l1_loss = l1_loss * l1_loss_weight / num_instances_overlap
     gen_pose_loss = gen_pose_loss * pose_loss_weight / num_instances_overlap
     total_loss = l1_loss + gen_pose_loss
-    print('L1 :', l1_loss, ', POSE :', gen_pose_loss)
+    #print('L1 :', l1_loss, ', POSE :', gen_pose_loss)
 
     return total_loss, None
 

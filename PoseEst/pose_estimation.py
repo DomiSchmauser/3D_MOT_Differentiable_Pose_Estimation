@@ -313,7 +313,7 @@ def run_crop_3dbbox(depth, campose, gt_3Dbbox, gt_2Dbbox, gt_bin_mask): #per Obj
 
     return cropped_gt_3Dbbox
 
-def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, device=None, use_depth_box=True):
+def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, device=None, use_RANSAC=False):
     '''
     Pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
     TORCH IMPLEMENTATION FOR BACKPROP
@@ -372,9 +372,11 @@ def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, dev
     if cleaned_nocs_pts.shape[0] == 0:
         return None, None, None, None, None, None
 
-    #Rotation, Scales, Translation, _ = umeyama_torch(cleaned_nocs_pts, clean_depth_pts) # CAD2CAM
-    Rotation, Scales, Translation, _ = estimateSimilarityTransform_torch(cleaned_nocs_pts, clean_depth_pts,
-                                                                   verbose=False, ratio_adapt=outlier_thres, device=device)  # CAD2CAM
+    if not use_RANSAC:
+        Rotation, Scales, Translation, _ = umeyama_torch(cleaned_nocs_pts, clean_depth_pts) # CAD2CAM
+    else:
+        Rotation, Scales, Translation, _ = estimateSimilarityTransform_torch(cleaned_nocs_pts, clean_depth_pts,
+                                                                       verbose=False, ratio_adapt=outlier_thres, device=device)  # CAD2CAM
 
     if Scales is None:
         return None, None, None, None, None, None
