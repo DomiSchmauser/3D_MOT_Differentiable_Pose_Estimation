@@ -169,8 +169,10 @@ def clean_depth_torch(depth_pts_ol, obj_gt_3Dbbox, campose):
                 and depth_cpt[2] > gt_zmin and depth_cpt[2] < gt_zmax:
             new_depth.append(torch.unsqueeze(depth_pts_ol[index], dim=-1))
             indicies_used.append(index)
-
-    depth_no_ol = torch.cat(new_depth, dim=-1)
+    if len(new_depth) > 60:
+        depth_no_ol = torch.cat(new_depth, dim=-1)
+    else:
+        depth_no_ol = None
 
     return depth_no_ol, indicies_used
 
@@ -350,18 +352,22 @@ def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, dev
     # Clean depth
     if gt_3d_box is not None:
         new_depth_pts, new_idxs = clean_depth_torch(depth_pts, gt_3d_box, campose) # clean depth for objects with holes
-        if len(new_idxs) > 20:
+        if new_depth_pts is not None:
             depth_pts = new_depth_pts.T
-            idxs_x = idxs[:,0][new_idxs]
-            idxs_y = idxs[:,1][new_idxs]
+            idxs_x = idxs[:, 0][new_idxs]
+            idxs_y = idxs[:, 1][new_idxs]
             idxs = (idxs_x, idxs_y)
 
     # Clean depth
     clean_depth_pts = depth_pts
     ind = list(np.arange(clean_depth_pts.shape[0]))
 
-    idxs_x = idxs[0][ind]
-    idxs_y = idxs[1][ind]
+    if new_depth_pts is not None:
+        idxs_x = idxs[0][ind]
+        idxs_y = idxs[1][ind]
+    else:
+        idxs_x = idxs[:, 0][ind]
+        idxs_y = idxs[:, 1][ind]
 
     nocs_pts = nocs[idxs_x, idxs_y, :] - 0.5   # 0 centering -> back to cad space
 

@@ -38,7 +38,7 @@ def get_dataset_info(img_path, combined=False):
                         mapping_list.append(cat_id)
     for l in list(set(bad_folder)):
         print("remove folder", os.path.join(CONF.PATH.DETECTTRAIN, l))
-        shutil.rmtree(os.path.join(CONF.PATH.DETECTTRAIN, l), ignore_errors=True)
+        #shutil.rmtree(os.path.join(CONF.PATH.DETECTTRAIN, l), ignore_errors=True)
 
     if combined:
         return mapping_list, name_list, img_count

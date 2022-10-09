@@ -36,7 +36,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         else:
             cfg.DATASETS.TEST = ("office_inference",)
 
-    cfg.TEST.EVAL_PERIOD = 3000
+    cfg.TEST.EVAL_PERIOD = 5000 #5000
     cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False
@@ -109,7 +109,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     cfg.MODEL.ROI_NOCS_HEAD.POOLER_SAMPLING_RATIO = 0
 
     # Solver Options
-    cfg.SOLVER.CHECKPOINT_PERIOD = 13000 #save model each n iterations
+    cfg.SOLVER.CHECKPOINT_PERIOD = 20000 #save model each n iterations #20000
     cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
     cfg.SOLVER.STEPS = []  # decay learning rate
     cfg.SOLVER.WARMUP_FACTOR = 1
@@ -117,7 +117,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     cfg.SOLVER.WARMUP_METHOD = "linear"
     cfg.SOLVER.GAMMA = 1
     cfg.SOLVER.WEIGHT_DECAY = 0.0005 # L2-Regularization
-    cfg.SOLVER.IMS_PER_BATCH = 16 # Batch size
+    cfg.SOLVER.IMS_PER_BATCH = 8 # Batch size #8
     cfg.SOLVER.BASE_LR = 0.008 # for joint set lower e.g 0.0008
     cfg.SOLVER.MAX_ITER = 200000
 
