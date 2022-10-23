@@ -106,7 +106,12 @@ def voxel_inference(pred_voxel_logits, pred_instances,
         print('No predicted instances found for batch...')
         return
 
-    depth = depth[0]
+    if depth:
+        depth = depth[0]
+    else:
+        depth = []
+
+
     voxel_probs_pred = voxel_probs_pred.split(num_boxes_per_image, dim=0)
 
     # Assign predicted voxels   # instances and predictions different len -> moving idx
