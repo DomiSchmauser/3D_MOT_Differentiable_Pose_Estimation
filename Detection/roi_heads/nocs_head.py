@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 ROI_NOCS_HEAD_REGISTRY = Registry("ROI_NOCS_HEAD")
 
 
-def nocs_loss(pred_nocsmap, instances, pred_boxes,
-              l1_loss_weight=3, pose_loss_weight=3, iou_thres=0.5, cls_mapping=None, use_bin_loss=False, num_bins=32):
+def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_weight=1.5,
+              iou_thres=0.5, cls_mapping=None, use_bin_loss=False, num_bins=32, start_iter_pose=None, current_iter=None):
     '''
     Calculate loss between predicted and gt nocs map if same category id and max IoU box > threshold
     per batch
@@ -136,14 +136,14 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes,
                     gt_binmask = gt_binmasks[idx_max_iou, :, :] # H x W
                     gt_voxel = gt_voxel_logits[idx_max_iou, :, : ,:]
                     obj_pc = vox2pc(gt_voxel)
+                    pred_rot = None
 
-                    pred_rot, pred_trans, pred_scale, _, _, _ = \
-                        run_pose_torch(reshaped_patch, gt_depth, campose,
-                                gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_RANSAC=False, device=device)
+                    if current_iter > int(start_iter_pose):
 
-                    #global_rot, global_trans, global_scale, _, _, _ = \
-                    #    run_pose(reshaped_patch.detach(), gt_depth.detach().cpu(), campose.detach().cpu().numpy(), gt_binmask,
-                    #                abs_pred_box, gt_3d_box=gt_bbox_loc.detach().cpu(), use_depth_box=True)
+                        pred_rot, pred_trans, pred_scale, _, _, _ = \
+                            run_pose_torch(reshaped_patch, gt_depth, campose,
+                                    gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_RANSAC=False, device=device)
+
 
                     if pred_rot is not None:
                         #pred_rot = torch.from_numpy(global_rot).to(device)

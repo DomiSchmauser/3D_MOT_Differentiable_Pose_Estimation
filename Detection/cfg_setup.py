@@ -102,6 +102,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     else:
         cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT = 3 # NOCS LOSS
     cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT = 3 # Pose LOSS
+    cfg.MODEL.ROI_NOCS_HEAD.START_ITER_POSE = 20000 / 4
     cfg.MODEL.ROI_NOCS_HEAD.IOU_THRES = 0.5
     cfg.MODEL.ROI_NOCS_HEAD.NAME = 'NocsDecoder'
     cfg.MODEL.ROI_NOCS_HEAD.POOLER_RESOLUTION = 14

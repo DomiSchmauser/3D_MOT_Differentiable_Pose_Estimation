@@ -108,7 +108,7 @@ def umeyama_torch(from_points, to_points):
         S[m - 1, m - 1] = -1
     elif cov_rank < m - 1:
         # raise ValueError("colinearility detected in covariance matrix:\n{}".format(cov_matrix))
-        return S, 1 / sigma_from, mean_to - 1 / sigma_from * mean_from
+        return S, 1 / sigma_from, mean_to - 1 / sigma_from * mean_from, None
 
     R = U @ S @ V_t
     c = (d * S.diag()).sum() / sigma_from

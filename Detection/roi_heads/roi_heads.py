@@ -40,6 +40,7 @@ class VoxelNocsHeads(StandardROIHeads):
         self.metadata = MetadataCatalog.get(self.train_dataset_names)
         if 'thing_classes' in self.metadata.as_dict():
             self.class_mapping = self.metadata.thing_classes
+        self.iter = 0
 
 
     def _init_voxel_head(self, cfg, input_shape):
@@ -74,6 +75,7 @@ class VoxelNocsHeads(StandardROIHeads):
 
         self.nocs_on = cfg.MODEL.NOCS_ON
         self.nocs_loss_weight = cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT
+        self.start_iter_pose = cfg.MODEL.ROI_NOCS_HEAD.START_ITER_POSE
         self.pose_loss_weight = cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT
         self.iou_threshold = cfg.MODEL.ROI_NOCS_HEAD.IOU_THRES
         self.use_bin_loss = cfg.MODEL.ROI_NOCS_HEAD.USE_BIN_LOSS
@@ -111,6 +113,7 @@ class VoxelNocsHeads(StandardROIHeads):
             del targets
             losses.update(self._forward_voxel(features, instances)) # features input data mapping feature map name to tensor, axis 0 = N num images
             losses.update(self._forward_nocs(features, instances))  # features input data mapping feature map name to tensor, axis 0 = N num images
+            self.iter += 1
             return [], losses
 
         else:
@@ -214,7 +217,8 @@ class VoxelNocsHeads(StandardROIHeads):
                 loss_nocs, _ = nocs_loss(
                     nocs_map_rgb, proposals, src_boxes, l1_loss_weight=self.nocs_loss_weight,
                     pose_loss_weight=self.pose_loss_weight, iou_thres=self.iou_threshold,
-                    cls_mapping=self.class_mapping, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins
+                    cls_mapping=self.class_mapping, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins,
+                    start_iter_pose=self.start_iter_pose, current_iter=self.iter
                 )
                 losses.update({"loss_nocs": loss_nocs})
 
