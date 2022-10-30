@@ -286,7 +286,6 @@ def _evaluate_voxel(predictions, gt_data, class_mapping=None, thres=0.4, vis_vox
                 voxel_iou = compute_voxel_iou(pred_vox.sigmoid(), gt_same_voxel) # add sigmoid
                 mean_vox_acc.append(voxel_iou)
 
-                #voxel_loss = F.binary_cross_entropy_with_logits(pred_vox, gt_same_voxel.type('torch.FloatTensor'), reduction="mean")
                 voxel_loss = balanced_BCE_loss(gt_same_voxel.type('torch.FloatTensor'), pred_vox)
                 mean_vox_loss.append(voxel_loss.detach().cpu().numpy())
 

@@ -1,6 +1,7 @@
 import logging
 import os, sys, shutil
 import torch
+import traceback
 import roi_heads #Required for call register()
 from collections import OrderedDict
 import detectron2.utils.comm as comm
@@ -136,12 +137,15 @@ class FrontTrainer(DefaultTrainer):
                 storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
                 scheduler.step()
 
-                if (cfg.TEST.EVAL_PERIOD > 0 and (iteration + 1) % (cfg.TEST.IMG_SAVE_FREQ * cfg.TEST.EVAL_PERIOD) == 0 and iteration != max_iter - 1 and (iteration+1) >= cfg.TEST.START_EVAL):
-                    cls.do_test(cfg, model, save_img_pred=True)
-                    comm.synchronize()
-                elif (cfg.TEST.EVAL_PERIOD > 0 and (iteration + 1) % cfg.TEST.EVAL_PERIOD == 0 and iteration != max_iter - 1 and (iteration+1) >= cfg.TEST.START_EVAL):
-                    cls.do_test(cfg, model, save_img_pred=False)
-                    comm.synchronize()
+                try:
+                    if (cfg.TEST.EVAL_PERIOD > 0 and (iteration + 1) % (cfg.TEST.IMG_SAVE_FREQ * cfg.TEST.EVAL_PERIOD) == 0 and iteration != max_iter - 1 and (iteration+1) >= cfg.TEST.START_EVAL):
+                        cls.do_test(cfg, model, save_img_pred=True)
+                        comm.synchronize()
+                    elif (cfg.TEST.EVAL_PERIOD > 0 and (iteration + 1) % cfg.TEST.EVAL_PERIOD == 0 and iteration != max_iter - 1 and (iteration+1) >= cfg.TEST.START_EVAL):
+                        cls.do_test(cfg, model, save_img_pred=False)
+                        comm.synchronize()
+                except Exception:
+                    traceback.print_exc()
 
                 if iteration - start_iter > 5 and ((iteration + 1) % 20 == 0 or iteration == max_iter - 1):
                     for writer in writers:

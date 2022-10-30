@@ -35,7 +35,6 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
     l1_loss = 0
     gen_pose_loss = 0
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    #batch_size = len(instances)
     start_instance = 0
     num_instances_overlap = 0
     pose_loss_criterion = PoseLoss(max_points=500)
@@ -144,13 +143,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
                             run_pose_torch(reshaped_patch, gt_depth, campose,
                                     gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_RANSAC=False, device=device)
 
-
                     if pred_rot is not None:
-                        #pred_rot = torch.from_numpy(global_rot).to(device)
-                        #pred_trans = torch.from_numpy(global_trans).to(device)
-                        #pred_scale = torch.tensor(global_scale).to(device)
-                        #pred_rot.requires_grad, pred_trans.requires_grad, pred_scale.requires_grad = True, True, True
-
                         # 7 DoF Object Pose Loss using sampled points from complete object geometry
                         obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
                                                             pred_scale, obj_pc)
@@ -167,7 +160,6 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
                     # Loss only on overlap ROI with GT
                     pred_overlap = full_patch[:, y_min:y_max, x_min:x_max]  # CxHxW
                     gt_overlap = gt_patch[:, y_min:y_max, x_min:x_max]  # CxHxW
-                    # print(pred_overlap.shape, max_iou, pred_patch.shape)
 
                     obj_loss = symmetry_smooth_l1_loss(gt_overlap, pred_overlap, gt_cls=gt_cls)
 
@@ -179,7 +171,6 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
     l1_loss = l1_loss * l1_loss_weight / num_instances_overlap
     gen_pose_loss = gen_pose_loss * pose_loss_weight / num_instances_overlap
     total_loss = l1_loss + gen_pose_loss
-    #print('L1 :', l1_loss, ', POSE :', gen_pose_loss)
 
     return total_loss, None
 

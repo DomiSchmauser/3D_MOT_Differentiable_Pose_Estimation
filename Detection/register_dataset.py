@@ -50,8 +50,6 @@ class RegisterDataset:
             with open(json_file) as f:
                 imgs_anns = json.load(f)
 
-            camposes = []
-            all_objs = []
             for idx, v in enumerate(imgs_anns['images']):
 
                 record = {}
@@ -63,13 +61,10 @@ class RegisterDataset:
                 record["image_id"] = str(v['id']) + '_' + folder[:8]
                 record["height"] = v['height']
                 record["width"] = v['width']
-                # record["nocs_map"] = self.get_nocs(v["file_name"], img_path, folder)
-                #record["depth_map"], record['campose'] = self.load_hdf5(depth_name)
                 record["nocs_map"] = filename.replace('rgb', 'nocs')
                 record["depth_map"] = depth_name
                 record["campose"] = self.load_campose(depth_name)
 
-                depth = []
                 objs = []
                 voxels = []
                 boxes = []
@@ -88,12 +83,8 @@ class RegisterDataset:
                         jid = anno['jid']
                         scale = np.array(anno['3Dscale'])
 
-                        #voxel = os.path.join(CONF.PATH.FUTURE3D, jid, 'model.binvox')
                         voxel = os.path.join(CONF.PATH.VOXELDATA, jid, 'model.binvox')
                         name = csv_dict[cat_id]
-
-                        #nocs_obj = self.crop_segmask(record["nocs_map"], anno['bbox'], anno['segmentation'])
-                        #depth_obj = self.crop_depth(record["depth_map"], anno['bbox'], anno['segmentation'])
 
                         if not name in self.name_list:
                             self.name_list.append(name)
@@ -123,7 +114,6 @@ class RegisterDataset:
                         voxels.append(voxel)
                         category.append(id)
                         boxes.append(anno['bbox'])
-                        #depth.append(depth_obj)
                         object_ids.append(object_id)
                         gt_rotations.append(anno['3Drot'])
                         anno_3dloc = self.add_halfheight(anno['3Dloc'].copy(), anno['3Dbbox'])
@@ -141,16 +131,7 @@ class RegisterDataset:
                 record['locations'] = gt_locations
                 record['3dboxes'] = gt_3dbox
                 record['3dscales'] = gt_scales
-                #all_objs.append(objs)
-                #camposes.append(record['campose'])
                 dataset_dicts.append(record)
-
-        '''
-        with open('optimization.pickle', 'wb') as handle:
-            all_objs.append(camposes)
-            pickle.dump(all_objs, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        sys.exit()
-        '''
 
         return dataset_dicts
 
