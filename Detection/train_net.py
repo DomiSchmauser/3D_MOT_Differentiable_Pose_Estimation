@@ -122,7 +122,7 @@ class FrontTrainer(DefaultTrainer):
 
                 losses = sum(loss_dict.values())
 
-                if (iteration + 1) % 10 == 0:
+                if (iteration + 1) % 50 == 0:
                     print(
                         f"Iteration {iteration+1} of {max_iter}, Train loss: {losses.detach().cpu().item()}."
                     )

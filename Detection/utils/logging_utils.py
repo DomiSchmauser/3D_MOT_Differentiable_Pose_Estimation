@@ -14,7 +14,7 @@ class ColorFormatter(logging.Formatter):
 
     def __init__(self):
         super().__init__()
-        self.fmt = '%(asctime)s | %(levelname)1s | %(message)s'
+        self.fmt = '%(asctime)s | %(levelname)1s | %(filename)s | %(message)s'
         self.FORMATS = {
             logging.DEBUG: self.grey + self.fmt + self.reset,
             logging.INFO: self.blue + self.fmt + self.reset,

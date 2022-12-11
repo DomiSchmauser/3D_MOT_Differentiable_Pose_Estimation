@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 import fvcore.nn.weight_init as weight_init
+import logging
 import sys
 import torch
 import numpy as np
@@ -18,6 +19,9 @@ from typing import Dict
 sys.path.append('..') #Hack add ROOT DIR
 from Detection.inference.inference_metrics import compute_voxel_iou
 from Detection.utils.train_utils import init_weights, balanced_BCE_loss
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 
@@ -66,7 +70,7 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
 
                 gt_voxel = gt_voxel_logits[idx_max_iou,:,:,:]
                 gt_depth = gt_depth_objs[idx_max_iou, :, :] # H x W
-                gt_box = torch.squeeze(gt_boxes_per_image[idx_max_iou].tensor, dim=0)
+                gt_box = torch.squeeze(gt_boxes_per_image[idx_max_iou].tensor, dim=0) # XYXY
 
                 if use_refiner and refiner is not None:
                     depth_crop = gt_depth[int(gt_box[1]):int(gt_box[3]), int(gt_box[0]):int(gt_box[2])]  # H x W
@@ -103,7 +107,11 @@ def voxel_inference(pred_voxel_logits, pred_instances,
     resize_transform = T.Resize((64, 64))
 
     if np.array(num_boxes_per_image).sum() == 0:
-        print('No predicted instances found for batch...')
+        logger.warning('No predicted instances found for batch.')
+        return
+
+    if depth is None:
+        logger.warning('No depth annotation given.')
         return
 
     voxel_probs_pred = voxel_probs_pred.split(num_boxes_per_image, dim=0)
@@ -112,24 +120,28 @@ def voxel_inference(pred_voxel_logits, pred_instances,
     for inst, prob, d in zip(pred_instances, voxel_probs_pred, depth[0]):
 
         if len(inst) == 0:
-            print('No predicted instances found ...')
+            logger.warning('No predicted instances found.')
             continue
 
         if use_refiner:
             prob_preds = []
             img_bboxs = inst.get('pred_boxes').tensor
             for i in range(img_bboxs.shape[0]): # per object
-                bbox = img_bboxs[i]
+                bbox = img_bboxs[i] #XYXY
                 depth_crop = d[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]  # H x W
-                norm_depth_crop = resize_transform(torch.unsqueeze(depth_crop, dim=0))
-                pred_voxel = refiner(torch.squeeze(prob[i], dim=1), norm_depth_crop)
+                if (depth_crop.shape[0] < 2) or (depth_crop.shape[1] < 2):
+                    pred_voxel = prob
+                    logger.warning('Bounding box prediction width or height < 2 pixel, skipping refinement.')
+                else:
+                    norm_depth_crop = resize_transform(torch.unsqueeze(depth_crop, dim=0))
+                    pred_voxel = refiner(torch.squeeze(prob[i], dim=1), norm_depth_crop)
                 prob_preds.append(pred_voxel)
-            prob = torch.cat(prob_preds, dim=0)
+            prob_preds = torch.cat(prob_preds, dim=0)
 
-        if prob.sum() == 0: # sigmoid of 0 = 0.5 -< (prob.numel() * 0.5)
+        if prob_preds.sum() == 0: # sigmoid of 0 = 0.5 -< (prob.numel() * 0.5)
             inst.pred_voxels = torch.tensor([]).cuda()
         else:
-            inst.pred_voxels = torch.squeeze(prob, dim=1)  # (Num inst in 1 img, D, H, W)
+            inst.pred_voxels = torch.squeeze(prob_preds, dim=1)  # (Num inst in 1 img, D, H, W)
 
 @ROI_VOXEL_HEAD_REGISTRY.register()
 class VoxRefiner(torch.nn.Module):

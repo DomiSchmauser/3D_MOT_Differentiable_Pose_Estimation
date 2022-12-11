@@ -170,8 +170,8 @@ class VoxelNocsHeads(StandardROIHeads):
                 voxel_logits = self.voxel_head(voxel_features) #Num objs x 1 x 32 x 32 x 32, zeros for empty detection
                 src_boxes = cat([p.tensor for p in proposal_boxes])  # num obj x 4 format XYXY
                 loss_voxel, _ = voxel_loss(
-                    voxel_logits, proposals, src_boxes, loss_weight=self.voxel_loss_weight, iou_thres=self.iou_threshold,
-                    use_refiner=self.use_refiner, refiner=self.voxel_refiner
+                    voxel_logits, proposals, src_boxes, loss_weight=self.voxel_loss_weight,
+                    iou_thres=self.iou_threshold, use_refiner=self.use_refiner, refiner=self.voxel_refiner
                 )
                 losses.update({"loss_voxel": loss_voxel})
 
@@ -183,7 +183,9 @@ class VoxelNocsHeads(StandardROIHeads):
 
                 voxel_features = self.voxel_pooler(features, pred_boxes) # BS x 256 x 14 x 14
                 voxel_logits = self.voxel_head(voxel_features)
-                voxel_inference(voxel_logits, instances, use_refiner=self.use_refiner, refiner=self.voxel_refiner, depth=depth)
+                voxel_inference(
+                    voxel_logits, instances, use_refiner=self.use_refiner, refiner=self.voxel_refiner, depth=depth
+                )
 
             return instances
 

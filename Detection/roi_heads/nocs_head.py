@@ -2,6 +2,7 @@
 import fvcore.nn.weight_init as weight_init
 import torch
 import numpy as np
+import logging
 import mathutils
 from detectron2.layers import ShapeSpec, cat, roi_align
 from detectron2.utils.events import get_event_storage
@@ -18,6 +19,8 @@ from Detection.inference.inference_utils import vox2pc
 from PoseEst.pose_estimation import run_pose, run_pose_torch
 
 import matplotlib.pyplot as plt
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 ROI_NOCS_HEAD_REGISTRY = Registry("ROI_NOCS_HEAD")
 
@@ -186,7 +189,7 @@ def nocs_inference(pred_nocsmap, pred_instances, use_bin_loss=False, num_bins=32
     for prob, instances in zip(nocs_pred, pred_instances):
 
         if len(instances) == 0:
-            print('No predicted instances found ...')
+            logger.warning('No predicted instances found.')
             continue
 
         num_pred_instances = prob.shape[0]

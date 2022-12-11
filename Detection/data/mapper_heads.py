@@ -2,6 +2,7 @@ import os, sys
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+import logging
 
 import copy
 import logging
@@ -25,6 +26,10 @@ import detectron2.data.transforms as T
 
 sys.path.append('..') #Hack add ROOT DIR
 from Detection.utils.train_utils import crop_segmask, get_voxel
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 __all__ = ["VoxNocsMapper", "VoxMapper"]
 
@@ -166,7 +171,8 @@ class VoxNocsMapper:
                     count += 1
 
                 dataset_dict['instances'].set('gt_nocs', gt_nocs)
-
+        else:
+            logger.warning(f"No annotations in dataset dict for image: {dataset_dict['file_name']}")
         return dataset_dict
 
 
