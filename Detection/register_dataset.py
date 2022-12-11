@@ -1,20 +1,17 @@
-# import some common libraries
 import torch
 import numpy as np
-import os, json, cv2, random, csv, pickle, sys
+import os, json, cv2, random, csv, pickle, sys, logging
 import h5py
 from pycocotools.coco import COCO
 import matplotlib.pyplot as plt
+from PIL import Image
 
-
-# import some common detectron2 utilities
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.structures import BoxMode
 from detectron2.structures import polygons_to_bitmask
 from detectron2.utils.visualizer import GenericMask
 
-from PIL import Image
 
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
@@ -22,11 +19,15 @@ from baseconfig import CONF
 from BlenderProc.utils import binvox_rw
 from Detection.utils.train_utils import get_voxel
 
-
-# Define directory to images
 IMG_DIR = CONF.PATH.DETECTDATA
 
-# custom dataset registration
+logging.basicConfig()
+logging.getLogger(__name__).setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+
+
+# MOTFront dataset registration
 class RegisterDataset:
 
     def __init__(self, mapping_list, name_list, img_dir=IMG_DIR):
@@ -132,7 +133,6 @@ class RegisterDataset:
                 record['3dboxes'] = gt_3dbox
                 record['3dscales'] = gt_scales
                 dataset_dicts.append(record)
-
         return dataset_dicts
 
     def get_eval_dicts(self, img_path):
@@ -197,9 +197,11 @@ class RegisterDataset:
     # register train and val dataset
     def reg_dset(self):
         for d in ["train", "val", "test"]:
+            logger.info(f"Register {d} dataset.")
             DatasetCatalog.register("front_" + d, lambda d=d: self.get_front_dicts(self.img_dir + d))
             MetadataCatalog.get("front_" + d).set(thing_classes=self.name_list)
-        print("Registered Dataset")
+
+
 
     # data mean, std
     def calculate_mean_std(self):
@@ -213,7 +215,7 @@ class RegisterDataset:
             img = cv2.imread(d["file_name"])
             data_mean = data_mean + np.mean(img, axis=(0, 1)) / data_len
             data_std = data_std + np.std(img, axis=(0, 1)) / data_len
-            print("data mean", data_mean)
+            logger.debug(f"Data mean {data_mean}, data standard deviation {data_std}")
         return data_mean, data_std
 
     # visualize annotations

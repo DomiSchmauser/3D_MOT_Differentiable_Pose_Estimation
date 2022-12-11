@@ -24,12 +24,13 @@ from evaluator.CocoEvaluator import COCOEvaluator
 from evaluator.EvaluatorUtils import inference_on_dataset_voxnocs, inference_on_dataset_coco
 from Utility.analyse_datset import get_dataset_info
 from cfg_setup import init_cfg
+from utils.logging_utils import setup_logging
 
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
-
-logger = logging.getLogger("front_logger")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class FrontTrainer(DefaultTrainer):
@@ -65,7 +66,7 @@ class FrontTrainer(DefaultTrainer):
 
     @classmethod
     def do_test(cls, cfg, model, save_img_pred=False):
-        print('Evaluation starts...')
+        logger.info('Start evaluation.')
         results = OrderedDict()
 
         for dataset_name in cfg.DATASETS.TEST:
@@ -92,7 +93,7 @@ class FrontTrainer(DefaultTrainer):
 
     @classmethod
     def do_train(cls, cfg, model, resume=False):
-        print('Training starts...')
+        logger.info('Start training.')
         model.train()
         optimizer = build_optimizer(cfg, model)
         scheduler = build_lr_scheduler(cfg, optimizer)
@@ -112,7 +113,7 @@ class FrontTrainer(DefaultTrainer):
         writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
 
         data_loader = cls.build_train_loader(cfg)
-        logger.info("Starting training from iteration {}".format(start_iter))
+        logger.info(f"Starting training from iteration {start_iter} of {max_iter} iterations.")
         with EventStorage(start_iter) as storage:
             for data, iteration in zip(data_loader, range(start_iter, max_iter)):
                 storage.iter = iteration
@@ -121,8 +122,10 @@ class FrontTrainer(DefaultTrainer):
 
                 losses = sum(loss_dict.values())
 
-                if (iteration + 1) % 100 == 0:
-                    print('Iteration ', iteration+1,' of ', max_iter, ' , Training Loss: ', losses.detach().cpu().item())
+                if (iteration + 1) % 10 == 0:
+                    print(
+                        f"Iteration {iteration+1} of {max_iter}, Train loss: {losses.detach().cpu().item()}."
+                    )
 
                 assert torch.isfinite(losses).all(), loss_dict
 
@@ -164,8 +167,10 @@ def setup():
 
 
 def main(args):
+    setup_logging()
+
     cfg, mapping_list, name_list = setup()
-    print('Existing Classes :', name_list)
+    logger.info(f"Existing classes: {name_list}")
 
     register_cls = RegisterDataset(mapping_list, name_list)
     register_cls.reg_dset()
@@ -175,15 +180,15 @@ def main(args):
 
     # Remove old files
     if os.path.exists(CONF.PATH.DETECTOUTPUT):
-        print('Removing old outputs ...')
+        logger.warning('Removing old outputs.')
         shutil.rmtree(CONF.PATH.DETECTOUTPUT)
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
     model = build_model(cfg)
-    logger.info("Model:\n{}".format(model))
+    #logger.info("Model:\n{}".format(model))
     if args.eval_only:
-        print('ONLY EVALUATION')
+        logger.debug('Running only evaluation.')
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )

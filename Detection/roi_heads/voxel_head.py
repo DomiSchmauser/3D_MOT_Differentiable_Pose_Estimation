@@ -126,8 +126,6 @@ def voxel_inference(pred_voxel_logits, pred_instances,
                 prob_preds.append(pred_voxel)
             prob = torch.cat(prob_preds, dim=0)
 
-
-
         if prob.sum() == 0: # sigmoid of 0 = 0.5 -< (prob.numel() * 0.5)
             inst.pred_voxels = torch.tensor([]).cuda()
         else:

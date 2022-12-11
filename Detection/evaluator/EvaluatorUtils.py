@@ -93,7 +93,7 @@ def inference_on_dataset_voxnocs(model, data_loader, evaluator, logger, cfg, sav
     mean_box_loss = np.mean(all_box_loss)
     mean_cls_loss = np.mean(all_cls_loss)
     mean_mask_loss = np.mean(all_mask_loss)
-    print('Validation Loss: ', mean_loss)
+    logger.info(f"Validation Loss: {mean_loss}")
     get_event_storage().put_scalar("validation/validation_loss", mean_loss)
     get_event_storage().put_scalar("validation/box_loss", mean_box_loss)
     get_event_storage().put_scalar("validation/mask_loss", mean_mask_loss)
@@ -129,7 +129,7 @@ def inference_on_dataset_voxnocs(model, data_loader, evaluator, logger, cfg, sav
 def inference_on_dataset_coco(model, data_loader, evaluator, logger):
 
     num_devices = get_world_size()
-    print("Start inference on {} images".format(len(data_loader)))
+    logger.info("Start inference on {} images".format(len(data_loader)))
 
     total = len(data_loader)  # inference data loader must have a fixed length
     all_res = []
