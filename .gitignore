@@ -63,8 +63,8 @@ Pix2Vox/output/
 Pix2Vox/pretrained/
 Pix2Vox/runs/
 
-# Pose
-PoseEst/data/
+# pose
+Detection/pose/data/
 
 # Tracking
 Tracking/output/

@@ -19,7 +19,7 @@ def compute_edge_emb(edge_feature, edge_encoder, voxel_dim=12):
     voxel_1 = obj_1_feature[:, :voxel_dim]
     voxel_2 = obj_2_feature[:, :voxel_dim]
 
-    # Pose features
+    # pose features
     rot_1  = obj_1_feature[:, voxel_dim:voxel_dim+3]
     loc_1 = obj_1_feature[:, voxel_dim+3:voxel_dim+6]
     scale_1 = torch.unsqueeze(obj_1_feature[:, -1], dim=-1)
@@ -51,7 +51,7 @@ def compute_edge_emb_nogeo(edge_feature, edge_encoder, device=None):
     obj_2_feature = edge_feature[:, obj_dim:]
 
 
-    # Pose features
+    # pose features
     rot_1  = obj_1_feature[:, :3]
     loc_1 = obj_1_feature[:, 3:6]
     scale_1 = torch.unsqueeze(obj_1_feature[:, -1], dim=-1)
@@ -322,7 +322,7 @@ def construct_siamese_dataset_vis(input, graph_in_features, thres=0.01, device=N
         if img_1 is None:
             continue
 
-        # Pose for vis
+        # pose for vis
         pred_bbox_1 = input[t]['pred_3Dbbox']  # num inst x 8pts x xyz
         pred_loc_1 = input[t]['translations']
         pred_rot_1 = input[t]['rotations']
@@ -475,7 +475,7 @@ def construct_siamese_dataset_office(input, graph_in_features):
         img_1 = graph_in_features[t]
         img_2 = graph_in_features[t + 1]  # 1 x num instances x 16
 
-        # Pose for vis
+        # pose for vis
         pred_loc_1 = input[t]['translations']
         pred_loc_2 = input[t + 1]['translations']
 

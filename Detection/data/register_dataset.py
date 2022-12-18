@@ -13,7 +13,7 @@ from detectron2.structures import polygons_to_bitmask
 from detectron2.utils.visualizer import GenericMask
 
 
-sys.path.append('..') #Hack add ROOT DIR
+sys.path.append('../..') #Hack add ROOT DIR
 from baseconfig import CONF
 
 from BlenderProc.utils import binvox_rw
@@ -195,15 +195,13 @@ class RegisterDataset:
         return dataset_dicts
 
     # register train and val dataset
-    def reg_dset(self):
+    def register_to_catalog(self):
         for d in ["train", "val", "test"]:
             logger.info(f"Register {d} dataset.")
             DatasetCatalog.register("front_" + d, lambda d=d: self.get_front_dicts(self.img_dir + d))
             MetadataCatalog.get("front_" + d).set(thing_classes=self.name_list)
 
 
-
-    # data mean, std
     def calculate_mean_std(self):
         dataset_dicts = self.get_front_dicts(os.path.join(self.img_dir, 'train'))
 
@@ -230,8 +228,7 @@ class RegisterDataset:
             cv2.imshow('image', out.get_image()[:, :, ::-1])
             cv2.waitKey(500)
 
-    # evaluate annotations
-    def eval_annotation(self):
+    def visualize_annotations(self):
         front_metadata = MetadataCatalog.get("front_train")
         dataset_dicts = self.get_eval_dicts(os.path.join(self.img_dir, 'train'))
 

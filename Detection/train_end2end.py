@@ -24,13 +24,13 @@ from detectron2.modeling import build_model
 from detectron2.solver import build_lr_scheduler, build_optimizer
 from detectron2.utils.events import EventStorage
 
-from register_dataset import RegisterDataset
+from Detection.data.register_dataset import RegisterDataset
 from data.mapper_heads import VoxNocsMapper
 from evaluator.FrontEvaluator import FrontEvaluator
 from evaluator.CocoEvaluator import COCOEvaluator
 from evaluator.EvaluatorUtils import inference_on_dataset_voxnocs, inference_on_dataset_coco
-from Utility.analyse_datset import get_dataset_info
-from cfg_setup import init_cfg
+from Detection.data.analyse_dataset import get_dataset_info
+from Detection.utils.cfg_setup import init_cfg
 from Detection.utils.postprocess import postprocess_dets
 
 sys.path.append('..') #Hack add ROOT DIR
@@ -58,7 +58,7 @@ logger = logging.getLogger("front_logger")
 
 class FrontTrainer(DefaultTrainer):
     '''
-    Main Trainer class for End-to-End Detection, Pose Estimation and Tracking
+    Main Trainer class for End-to-End Detection, pose Estimation and Tracking
     '''
 
     @classmethod
@@ -500,7 +500,7 @@ class FrontTrainer(DefaultTrainer):
                 outputs = model(data)
                 model.train()
 
-                # Postprocess Pose Estimation and run Tracking network
+                # Postprocess pose Estimation and run Tracking network
                 try: # todo precompute gt box crops
                     window_seq_data = postprocess_dets(data, outputs, obj_threshold=0.35, iou_threshold=0.35, mode='train')
                 except:

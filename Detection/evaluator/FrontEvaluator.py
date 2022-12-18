@@ -5,17 +5,14 @@ import itertools
 import logging
 import pickle
 import matplotlib.pyplot as plt
-from torch.nn import functional as F
 
 import numpy as np
-import os, sys, cv2
+import os, sys
 from collections import OrderedDict
 import detectron2.utils.comm as comm
 import open3d as o3d
 import torch
-import random
 
-from detectron2.utils.visualizer import GenericMask
 from detectron2.data import MetadataCatalog
 from detectron2.data.datasets.coco import convert_to_coco_json
 from detectron2.evaluation.evaluator import DatasetEvaluator
@@ -25,15 +22,14 @@ from detectron2.utils.logger import create_small_table
 from detectron2.layers import roi_align
 from detectron2.utils.events import get_event_storage
 
-from BlenderProc.utils import binvox_rw
 from Detection.evaluator.coco import COCO
 
 sys.path.append('..') #Hack add ROOT DIR
 
-from Detection.inference.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff, get_location_diff_boxcenter
+from Detection.inference.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff
 from Detection.inference.inference_utils import convert_voxel_to_pc
-from PoseEst.pose_estimation import run_pose
-from Detection.utils.train_utils import crop_segmask, get_voxel, symmetry_smooth_l1_loss, balanced_BCE_loss, symmetry_bin_loss
+from Detection.pose.pose_estimation import run_pose
+from Detection.utils.train_utils import crop_segmask, get_voxel, symmetry_smooth_l1_loss, balanced_BCE_loss
 
 
 class FrontEvaluator(DatasetEvaluator):
@@ -450,7 +446,7 @@ def _evaluate_nocs(predictions, gt_data, class_mapping=None, thres=0.4, vis_nocs
                         # Only one image per category
                         id_storage.append(gt_cat_id)
 
-                # Pose Estimation ------------------------------------------------------------
+                # pose Estimation ------------------------------------------------------------
                 # ROI align to predicted box size
                 pose_patch = roi_align(torch.unsqueeze(pred_nocs.to(device=device), dim=0), bbox,
                                        output_size=(pred_heigth, pred_width), aligned=True)
@@ -497,7 +493,7 @@ def _evaluate_nocs(predictions, gt_data, class_mapping=None, thres=0.4, vis_nocs
                     gt_objs.append(gt_pc_obj)
                     pred_objs.append(pred_pc_obj)
 
-        # Visualise Pose of all objects in a scene
+        # Visualise pose of all objects in a scene
         if False:
             nocs_origin = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1, origin=[0, 0, 0])
             combined = gt_objs + pred_objs

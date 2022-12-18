@@ -81,7 +81,7 @@ def visualize_graph(G, color):
 
 def fuse_pose(trajectories, seq_len=None):
     '''
-    Pose fusion via slurp and spline interpolation
+    pose fusion via slurp and spline interpolation
     '''
 
     def get_scale(m):
@@ -200,7 +200,7 @@ def fuse_pose(trajectories, seq_len=None):
 
 def fuse_pose_F2F(trajectories, seq_len=125, constraint=True):
     '''
-    Pose fusion via slurp and spline interpolation
+    pose fusion via slurp and spline interpolation
     '''
 
     def get_scale(m):

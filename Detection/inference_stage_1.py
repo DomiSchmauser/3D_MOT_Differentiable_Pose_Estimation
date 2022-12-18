@@ -6,9 +6,9 @@ import mathutils
 import matplotlib.pyplot as plt
 import traceback
 
-from cfg_setup import inference_cfg
-from Utility.analyse_datset import get_dataset_info
-from register_dataset import RegisterDataset
+from Detection.utils.cfg_setup import inference_cfg
+from Detection.data.analyse_dataset import get_dataset_info
+from Detection.data.register_dataset import RegisterDataset
 
 from detectron2.engine import DefaultPredictor
 from detectron2.data import MetadataCatalog
@@ -18,19 +18,16 @@ from detectron2.utils.visualizer import GenericMask
 from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.layers import roi_align
 import open3d as o3d
-from dvis import dvis
 
 # required so that .register() calls are executed in module scope
-import data
-import roi_heads
 
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
-from PoseEst.pose_estimation import run_pose, run_crop_3dbbox, sort_bbox
+from Detection.pose.pose_estimation import run_pose, run_crop_3dbbox, sort_bbox
 from Detection.inference.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff
 from Detection.inference.inference_utils import load_hdf5, log_results, convert_voxel_to_pc, add_halfheight, get_nocs, get_scale
-from Detection.utils.train_utils import get_voxel, crop_segmask_gt
+from Detection.utils.train_utils import get_voxel
 
 
 def vis_inference(dataset_dicts, front_metadata):
@@ -178,7 +175,7 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
                     gt_rotation = gt_annotations['3Drot'][idx_max_iou] #Cad2World
                     gt_location = gt_annotations['3Dloc'][idx_max_iou] #Cad2World
 
-                    # Pose Estimation Module --------------------------------------------------------------------------------
+                    # pose Estimation Module --------------------------------------------------------------------------------
                     noc = nocs[i, :, :, :]  # C x 28 x 28
                     abs_bbox = bboxes[i].tensor.type(torch.int)[0]  # pred box
 
@@ -212,7 +209,7 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
                     unscaled_rot = global_rot / get_scale(global_rot)
                     r = mathutils.Matrix(unscaled_rot)
                     euler = np.array(r.to_euler())  # X,Y,Z
-                    # End Pose Estimation Module ----------------------------------------------------------------------------
+                    # End pose Estimation Module ----------------------------------------------------------------------------
 
                     '''
                     # For debugging vis GT nocs
@@ -227,7 +224,7 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
                     gt_pointcloud, pred_pointcloud = run_pose(gt_nocs, depth, campose, bin_masks[i, :, :], abs_bbox, gt_pc=nocs_pcd, gt_3d_box=gt_bbox_loc)
                     '''
 
-                    # Visualize Pose Estimation
+                    # Visualize pose Estimation
                     if visualize_pose and gt_pointcloud is not None:
                         # Projected depth as GT
                         gt_pc_obj = o3d.geometry.PointCloud()
@@ -493,7 +490,7 @@ def make_pred(split, write_files=True, overwrite=False):
 
 if __name__=="__main__":
     '''
-    Inference of the Detection, Reconstruction and Pose Estimation Pipeline
+    Inference of the Detection, Reconstruction and pose Estimation Pipeline
      - Loads a pretrained network (best_model.pth) from the model folder
      - Stores inference results in the predicted_data folder in a hdf5 format
     '''

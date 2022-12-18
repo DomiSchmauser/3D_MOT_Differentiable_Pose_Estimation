@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 from detectron2.utils.visualizer import GenericMask
 from detectron2.structures import BoxMode
 
-sys.path.append('..') #Hack add ROOT DIR
+sys.path.append('../..') #Hack add ROOT DIR
 from baseconfig import CONF
 
-from PoseEst.pose_utils import estimateSimilarityTransform, umeyama_torch, estimateSimilarityTransform_torch
+from pose_estimation.pose_utils import estimateSimilarityTransform, umeyama_torch, estimateSimilarityTransform_torch
 
 def backproject_torch(depth, intrinsics, bin_mask, device=None):
     '''
@@ -317,7 +317,7 @@ def run_crop_3dbbox(depth, campose, gt_3Dbbox, gt_2Dbbox, gt_bin_mask): #per Obj
 
 def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, device=None, use_RANSAC=False):
     '''
-    Pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
+    pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
     TORCH IMPLEMENTATION FOR BACKPROP
     nocs: predicted nocs map, shape of patch format HxWxC in RGB, normalized between 0 and 1
     depth: full depth 240 x 320 = H x W
@@ -400,7 +400,7 @@ def run_pose_torch(nocs, depth, campose, bin_mask, abs_bbox, gt_3d_box=None, dev
 
 def run_pose(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_pc=None, gt_3d_box=None, use_depth_box=True):
     '''
-    Pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
+    pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
     nocs: predicted nocs map, shape of patch format HxWxC in RGB, normalized between 0 and 1
     depth: full depth 240 x 320 = H x W
     campose: 4x4 homogeneous camera matrix
@@ -570,7 +570,7 @@ def run_pose(nocs, depth, campose, bin_mask, abs_bbox, vis_obj=False, gt_pc=None
 
 def run_pose_office(nocs, depth, cam_intrinsics, bin_mask, abs_bbox, vis_obj=False, gt_pc=None, gt_3d_box=None, use_depth_box=True):
     '''
-    Pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
+    pose Estimation with Umeyama Algorithm and RANSAC outlier removal per Object
     nocs: predicted nocs map, shape of patch format HxWxC in RGB, normalized between 0 and 1
     depth: full depth 240 x 320 = H x W
     campose: 4x4 homogeneous camera matrix

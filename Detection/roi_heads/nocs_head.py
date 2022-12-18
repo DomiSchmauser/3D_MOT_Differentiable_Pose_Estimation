@@ -1,13 +1,11 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-import fvcore.nn.weight_init as weight_init
 import torch
 import numpy as np
 import logging
 import mathutils
-from detectron2.layers import ShapeSpec, cat, roi_align
-from detectron2.utils.events import get_event_storage
+from detectron2.layers import ShapeSpec, roi_align
 from detectron2.utils.registry import Registry
-from detectron2.structures import Boxes, BoxMode, pairwise_iou
+from detectron2.structures import Boxes, pairwise_iou
 from detectron2.structures import BitMasks
 from torch import nn
 from typing import Dict
@@ -16,9 +14,8 @@ sys.path.append('..') #Hack add ROOT DIR
 from Detection.utils.train_utils import init_weights, symmetry_smooth_l1_loss, symmetry_bin_loss, crop_nocs, nocs_prob_to_value
 from Detection.utils.train_utils import PoseLoss
 from Detection.inference.inference_utils import vox2pc
-from PoseEst.pose_estimation import run_pose, run_pose_torch
+from Detection.pose.pose_estimation import run_pose_torch
 
-import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -124,7 +121,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
                     pred_patch = torch.squeeze(pred_patch, dim=0)  # C x H x W of predicted box
                     reshaped_patch = torch.clone(pred_patch.permute(1, 2, 0).contiguous())  # HxWxC
 
-                    # Pose Predictions
+                    # pose Predictions
                     gt_depth = gt_depth_objs[idx_max_iou, :, :]  # H x W
                     campose = gt_campose[idx_max_iou, :, :]  # 4 x 4
                     gt_bbox_loc = gt_3dboxs[idx_max_iou, :, :] # 8 x 3
@@ -147,7 +144,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
                                     gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_RANSAC=False, device=device)
 
                     if pred_rot is not None:
-                        # 7 DoF Object Pose Loss using sampled points from complete object geometry
+                        # 7 DoF Object pose Loss using sampled points from complete object geometry
                         obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
                                                             pred_scale, obj_pc)
                     else:

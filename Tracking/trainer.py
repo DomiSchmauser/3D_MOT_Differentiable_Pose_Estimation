@@ -452,7 +452,7 @@ class Trainer:
     def process_batch(self, inputs, mode='train', vis_pose=False):
         '''
         Process batch:
-        1. Encodes voxel grids in feature space and concat with Pose for object feature
+        1. Encodes voxel grids in feature space and concat with pose for object feature
         2. Get active/non-active edges (TARGETS) by computing IoU pred and GT and compare GT object ids
         -> obj1 img1 with all obj img2, obj2 img1 with all obj img2
         3. Concat object features between consecutive frames -> feature vector of 2 x 16 object features
@@ -486,7 +486,7 @@ class Trainer:
                         trans = torch.unsqueeze(input[i]['translations'], dim=0) # 1 x num_instances x 3
                         scale = torch.unsqueeze(torch.unsqueeze(input[i]['scales'], -1), dim=0) # 1 x num_instances x 1
                         pose = torch.cat((rot, trans, scale), dim=-1) # 1 x num_instance x 7
-                        #print('Pose feature', pose.shape)
+                        #print('pose feature', pose.shape)
 
                         img_feat = torch.cat((voxel_feature, pose.to(self.device)), dim=-1) # 1 x num instances x 16
                     elif self.opt.no_pose:

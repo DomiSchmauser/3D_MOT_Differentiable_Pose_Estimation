@@ -16,7 +16,7 @@ from detectron2.engine import DefaultTrainer
 from detectron2.modeling import build_model
 
 
-from cfg_setup import init_cfg
+from Detection.utils.cfg_setup import init_cfg
 from Detection.utils.postprocess import postprocess_dets_office
 
 sys.path.append('..') #Hack add ROOT DIR
@@ -44,7 +44,7 @@ logger = logging.getLogger("front_logger")
 
 class Office_Trainer(DefaultTrainer):
     '''
-    Main Trainer class for End-to-End Detection, Pose Estimation and Tracking
+    Main Trainer class for End-to-End Detection, pose Estimation and Tracking
     '''
 
     def __init__(self):
@@ -65,7 +65,7 @@ class Office_Trainer(DefaultTrainer):
 
     def fuse_pose(self, trajectories, seq_len=None, constraint=False):
         '''
-        Pose fusion via slurp and spline interpolation
+        pose fusion via slurp and spline interpolation
         '''
 
         def get_scale(m):

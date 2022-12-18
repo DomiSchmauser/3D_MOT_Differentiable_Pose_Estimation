@@ -2,7 +2,7 @@ import logging
 import os
 import torch
 import traceback
-import roi_heads #Required for call register()
+import roi_heads  # Required for call register()
 from collections import OrderedDict
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer, PeriodicCheckpointer

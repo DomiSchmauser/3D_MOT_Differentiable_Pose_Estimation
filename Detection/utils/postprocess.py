@@ -2,20 +2,16 @@ import sys, re
 import numpy as np
 import torch
 import mathutils
-import open3d as o3d
 
 from detectron2.utils.visualizer import GenericMask
 from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.layers import roi_align
 
 # required so that .register() calls are executed in module scope
-import data
-import roi_heads
 
 sys.path.append('..') #Hack add ROOT DIR
-from baseconfig import CONF
 
-from PoseEst.pose_estimation import run_pose, run_crop_3dbbox, sort_bbox, run_pose_office
+from Detection.pose.pose_estimation import run_pose, run_crop_3dbbox, sort_bbox, run_pose_office
 from Detection.inference.inference_utils import get_scale, project_segmask_F2F
 
 
@@ -24,7 +20,7 @@ def postprocess_dets(inputs, outputs, obj_threshold=0.35, iou_threshold=0.35, mo
     Postprocessing module for end-to-end network training:
      - Crop GT bounding boxes (should be done only once at the start of the training)
      - Prune detections using objectness score and iou_overlap
-     - Apply Umeyama for Pose Estimation
+     - Apply Umeyama for pose Estimation
      - Return windowed tracking data in format: List(img_dicts) -> len(window_size)
     '''
 
@@ -127,7 +123,7 @@ def postprocess_dets(inputs, outputs, obj_threshold=0.35, iou_threshold=0.35, mo
                 if max_iou >= iou_threshold:
 
                     gt_bbox_loc = torch.squeeze(gt_bboxes[idx_max_iou]) # formate needs to be 8x3
-                    # Pose Estimation Module ---------------------------------------------------------------------------
+                    # pose Estimation Module ---------------------------------------------------------------------------
                     noc = nocs[i, :, :, :]  # C x 28 x 28
                     abs_bbox = bboxes[i].tensor.type(torch.int)[0]  # pred box
 
@@ -166,7 +162,7 @@ def postprocess_dets(inputs, outputs, obj_threshold=0.35, iou_threshold=0.35, mo
                     pred_voxels.append(voxels[i:i+1,:,:,:])
                     classes.append(clss[i])
 
-                    # End Pose Estimation Module -----------------------------------------------------------------------
+                    # End pose Estimation Module -----------------------------------------------------------------------
 
         # Cleanup empty objects
 
@@ -242,7 +238,7 @@ def postprocess_dets_office(inputs, outputs, obj_threshold=0.01, mode='train'):
     Postprocessing module:
      - Crop GT bounding boxes (should be done only once at the start of the training)
      - Prune detections using objectness score and iou_overlap
-     - Apply Umeyama for Pose Estimation
+     - Apply Umeyama for pose Estimation
      - Return windowed tracking data in format: List(img_dicts) -> len(window_size)
     '''
 
@@ -291,7 +287,7 @@ def postprocess_dets_office(inputs, outputs, obj_threshold=0.01, mode='train'):
             obj_score = objectness_scores[i]
             if obj_score > obj_threshold:
 
-                # Pose Estimation Module ---------------------------------------------------------------------------
+                # pose Estimation Module ---------------------------------------------------------------------------
                 noc = nocs[i, :, :, :]  # C x 28 x 28
                 abs_bbox = bboxes[i].tensor.type(torch.int)[0]  # pred box
 
@@ -329,7 +325,7 @@ def postprocess_dets_office(inputs, outputs, obj_threshold=0.01, mode='train'):
                 pred_voxels.append(voxels[i:i+1,:,:,:])
                 classes.append(clss[i])
 
-                # End Pose Estimation Module -----------------------------------------------------------------------
+                # End pose Estimation Module -----------------------------------------------------------------------
 
         # Cleanup empty objects
 
@@ -356,7 +352,7 @@ def postprocess_dets_office_F2F(img_gt, img_pred, obj_threshold=0.01, mode='trai
     Postprocessing module:
      - Crop GT bounding boxes (should be done only once at the start of the training)
      - Prune detections using objectness score and iou_overlap
-     - Apply Umeyama for Pose Estimation
+     - Apply Umeyama for pose Estimation
      - Return windowed tracking data in format: List(img_dicts) -> len(window_size)
     '''
 

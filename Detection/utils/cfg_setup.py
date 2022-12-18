@@ -3,7 +3,7 @@ from detectron2.config import get_cfg
 from detectron2.config import CfgNode as CN
 from detectron2 import model_zoo
 
-sys.path.append('..') #Hack add ROOT DIR
+sys.path.append('../..') #Hack add ROOT DIR
 from baseconfig import CONF
 
 # Initialize training config
@@ -36,7 +36,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         else:
             cfg.DATASETS.TEST = ("office_inference",)
 
-    cfg.TEST.EVAL_PERIOD = 1000 #2000
+    cfg.TEST.EVAL_PERIOD = 50 #2000
     cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False
@@ -101,7 +101,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT = 0.2
     else:
         cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT = 3 # NOCS LOSS
-    cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT = 3 # Pose LOSS
+    cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT = 3 # pose LOSS
     cfg.MODEL.ROI_NOCS_HEAD.START_ITER_POSE = 20000 / 4
     cfg.MODEL.ROI_NOCS_HEAD.IOU_THRES = 0.5
     cfg.MODEL.ROI_NOCS_HEAD.NAME = 'NocsDecoder'

@@ -1,6 +1,6 @@
 import os, json, cv2, csv, sys
 import shutil
-sys.path.append('..') #Hack add ROOT DIR
+sys.path.append('../..') #Hack add ROOT DIR
 from baseconfig import CONF
 
 def get_dataset_info(img_path, combined=False):

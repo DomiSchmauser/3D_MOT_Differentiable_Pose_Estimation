@@ -1,59 +1,48 @@
-import os, sys
-import torch
+import sys
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-import logging
-
 import copy
 import logging
 import numpy as np
-from typing import List, Optional, Union
 import torch
 import cv2
 import h5py
 
-from detectron2.config import configurable
 from detectron2.structures import BoxMode
-from detectron2.structures import polygons_to_bitmask
 from detectron2.utils.visualizer import GenericMask
-from detectron2.data import DatasetMapper
 
 from BlenderProc.utils import binvox_rw
 
 import detectron2.data.detection_utils as utils
 import detectron2.data.transforms as T
 
-
-sys.path.append('..') #Hack add ROOT DIR
+sys.path.append('..')
 from Detection.utils.train_utils import crop_segmask, get_voxel
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
 __all__ = ["VoxNocsMapper", "VoxMapper"]
 
 class VoxNocsMapper:
     '''
-    Dataset mapper class to handle MOTFront data with a Detectron2 network training pipeline with Voxel and NOCs head
+    Dataset mapper class to handle MOTFront data with in a Detectron2 network
+    training pipeline with Voxel and NOCs head.
     '''
 
-    def __init__(self, cfg, use_instance_mask: bool = False, instance_mask_format: str = "polygon",
-            recompute_boxes: bool = False, is_train=True, dataset_names=None,):
+    def __init__(
+            self, cfg, use_instance_mask: bool = False, instance_mask_format: str = "polygon",
+            recompute_boxes: bool = False, is_train=True, dataset_names=None
+    ):
 
         if recompute_boxes:
             assert use_instance_mask, "recompute_boxes requires instance masks"
         self.is_train = is_train
-        self.augmentations = None  # list with augmentations NOT IMPLEMENTED YET
+        self.augmentations = None
         self.cfg = cfg
         self.image_format = cfg.INPUT.FORMAT
         self.use_instance_mask = use_instance_mask
         self.instance_mask_format = instance_mask_format
         self.recompute_boxes = recompute_boxes
-        # fmt: on
-        logger = logging.getLogger(__name__)
-        mode = "training" if is_train else "inference"
-        logger.info(f"[DatasetMapper] Augmentations used in {mode}: {self.augmentations}")
 
         self.dataset_names = dataset_names
         self.voxel_on = cfg.MODEL.VOXEL_ON
@@ -229,9 +218,9 @@ class VoxNocsMapper:
 
 
 class VoxMapper:
-    '''
-        Dataset mapper class to handle MOTFront data with a Detectron2 network training pipeline with Voxel head
-    '''
+    """
+    Dataset mapper class to handle MOTFront data with a Detectron2 network training pipeline with Voxel head.
+    """
 
     def __init__(
             self,
@@ -244,19 +233,13 @@ class VoxMapper:
     ):
         if recompute_boxes:
             assert use_instance_mask, "recompute_boxes requires instance masks"
-        # fmt: off
         self.is_train = is_train
-        self.augmentations = None  # list with augmentations NOT IMPLEMENTED YET
+        self.augmentations = None
         self.cfg = cfg
         self.image_format = cfg.INPUT.FORMAT
         self.use_instance_mask = use_instance_mask
         self.instance_mask_format = instance_mask_format
         self.recompute_boxes = recompute_boxes
-        # fmt: on
-        logger = logging.getLogger(__name__)
-        mode = "training" if is_train else "inference"
-        logger.info(f"[DatasetMapper] Augmentations used in {mode}: {self.augmentations}")
-
         self.dataset_names = dataset_names
         self.voxel_on = cfg.MODEL.VOXEL_ON
         self.nocs_on = cfg.MODEL.NOCS_ON

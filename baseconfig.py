@@ -8,7 +8,7 @@ CONF.PATH = EasyDict()
 CONF.PATH.BASE = os.path.abspath(os.path.dirname(__file__)) #Base Graph3DMOT path
 CONF.PATH.BPROC = os.path.join(CONF.PATH.BASE, "BlenderProc")
 CONF.PATH.DETECT = os.path.join(CONF.PATH.BASE, "Detection")
-CONF.PATH.PROJ = os.path.join(CONF.PATH.BASE, "PoseEst")
+CONF.PATH.PROJ = os.path.join(CONF.PATH.BASE, "Detection/pose")
 CONF.PATH.TRACK = os.path.join(CONF.PATH.BASE, 'Tracking')
 
 # Front Data Generation
@@ -20,8 +20,8 @@ CONF.PATH.FRONTTEXT = os.path.join(CONF.PATH.FRONTDATA, "3D-FRONT-texture")
 # Detection
 
 # MOTFront storage folder
-CONF.PATH.DETECTDATA = os.path.join('/home/dominik/Schreibtisch/Graph3DMOT/Detection', 'front_dataset/')
-#CONF.PATH.DETECTDATA = os.path.join(CONF.PATH.DETECT, 'front_dataset/')
+#CONF.PATH.DETECTDATA = os.path.join('/home/dominik/Schreibtisch/Graph3DMOT/Detection', 'front_dataset/')
+CONF.PATH.DETECTDATA = os.path.join(CONF.PATH.DETECT, 'front_dataset/')
 #CONF.PATH.DETECTDATA = '/mnt/raid/schmauser/'
 CONF.PATH.DETECTTRAIN = os.path.join(CONF.PATH.DETECTDATA, 'train')
 CONF.PATH.DETECTVAL = os.path.join(CONF.PATH.DETECTDATA, 'val')

@@ -1,7 +1,7 @@
 import h5py
 import torch
 import numpy as np
-import os, sys, cv2
+import sys, cv2
 import open3d as o3d
 import copy
 
@@ -11,10 +11,8 @@ from sklearn.metrics import f1_score
 
 sys.path.append('..') #Hack add ROOT DIR
 
-from BlenderProc.utils import binvox_rw
-from baseconfig import CONF
 from Detection.inference.inference_metrics import get_mean_iou, get_median_iou
-from PoseEst.pose_estimation import backproject, cam2world, sort_bbox
+from Detection.pose.pose_estimation import backproject, cam2world, sort_bbox
 
 
 def get_scale(m):
