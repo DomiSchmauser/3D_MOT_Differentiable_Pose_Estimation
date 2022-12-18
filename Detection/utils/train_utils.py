@@ -43,9 +43,9 @@ def pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, 
     pred_points = pred_mat[:3, :3] @ sample_points.T + pred_mat[:3, 3:]
     pred_points = pred_points.T
 
-    dis = torch.mean(torch.norm((pred_points - gt_points), dim=-1))
+    point_distance = torch.mean(torch.norm((pred_points - gt_points), dim=-1))
 
-    return dis
+    return point_distance
 
 class PoseLoss(_Loss):
     '''

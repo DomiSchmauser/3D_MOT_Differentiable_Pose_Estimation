@@ -56,7 +56,6 @@ def nocs_loss(
             pred_box = Boxes(torch.unsqueeze(abs_pred_box, dim=0)) # XYXY
             patch_heigth = int(abs_pred_box[3] - abs_pred_box[1])  # Y
             patch_width = int(abs_pred_box[2] - abs_pred_box[0])  # X
-
             pred_nocs = pred_nocsmap[i] #  32 x C x 28 x 28 (bin)
 
             ious = pairwise_iou(instances_per_image.gt_boxes, pred_box)
@@ -64,7 +63,6 @@ def nocs_loss(
             max_iou = ious[idx_max_iou]
 
             if max_iou >= iou_threshold:
-
                 num_instances_overlap += 1
 
                 gt_box = instances_per_image.gt_boxes.tensor[idx_max_iou,:].to(dtype=torch.int64)
