@@ -1,28 +1,22 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-
-import fvcore.nn.weight_init as weight_init
 import logging
 import sys
 import torch
 import numpy as np
 import torchvision.transforms as T
-#import matplotlib.pyplot as plt
 
 from detectron2.layers import ShapeSpec, cat
 from detectron2.utils.events import get_event_storage
 from detectron2.utils.registry import Registry
 from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from torch import nn
-from torch.nn import functional as F
 from typing import Dict
 
-sys.path.append('..') #Hack add ROOT DIR
+sys.path.append('..')
 from Detection.inference.inference_metrics import compute_voxel_iou
-from Detection.utils.train_utils import init_weights, balanced_BCE_loss
+from Detection.utils.train_utils import balanced_BCE_loss
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
 
 
 ROI_VOXEL_HEAD_REGISTRY = Registry("ROI_VOXEL_HEAD")
@@ -44,6 +38,7 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
 
     for instances_per_image in instances:
         if len(instances_per_image) == 0:
+            logger.warning('No instances in the given image.')
             continue
 
         end_instance = start_instance + len(instances_per_image)
@@ -99,8 +94,12 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
     return voxel_loss, gt_voxels
 
 
-def voxel_inference(pred_voxel_logits, pred_instances,
-                    use_refiner=True, refiner=None, depth=None): # shape Num obj x 1 x D x H x W, Num img x Instance class
+def voxel_inference(pred_voxel_logits, pred_instances, use_refiner=True, refiner=None, depth=None):
+    """
+    Args:
+        pred_voxel_logits shape: number_objects x 1 x dims x H x W
+        pred_instances shape: number_images x instance class
+    """
 
     voxel_probs_pred = pred_voxel_logits
     num_boxes_per_image = [len(i) for i in pred_instances]
@@ -126,8 +125,9 @@ def voxel_inference(pred_voxel_logits, pred_instances,
         if use_refiner:
             prob_preds = []
             img_bboxs = inst.get('pred_boxes').tensor
-            for i in range(img_bboxs.shape[0]): # per object
-                bbox = img_bboxs[i] #XYXY
+            num_objs = img_bboxs.shape[0]
+            for i in range(num_objs):
+                bbox = img_bboxs[i]  # format xyxy abs
                 depth_crop = d[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]  # H x W
                 if (depth_crop.shape[0] < 2) or (depth_crop.shape[1] < 2):
                     pred_voxel = prob
@@ -138,7 +138,7 @@ def voxel_inference(pred_voxel_logits, pred_instances,
                 prob_preds.append(pred_voxel)
             prob_preds = torch.cat(prob_preds, dim=0)
 
-        if prob_preds.sum() == 0: # sigmoid of 0 = 0.5 -< (prob.numel() * 0.5)
+        if prob_preds.sum() == 0:
             inst.pred_voxels = torch.tensor([]).cuda()
         else:
             inst.pred_voxels = torch.squeeze(prob_preds, dim=1)  # (Num inst in 1 img, D, H, W)
@@ -146,7 +146,7 @@ def voxel_inference(pred_voxel_logits, pred_instances,
 @ROI_VOXEL_HEAD_REGISTRY.register()
 class VoxRefiner(torch.nn.Module):
     """
-    Voxel grid refinement network
+    Voxel grid refinement network using GT depth information.
     """
     def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
         super(VoxRefiner, self).__init__()
@@ -181,14 +181,14 @@ class VoxRefiner(torch.nn.Module):
 
     def forward(self, coarse_voxel, depth):
         '''
-        coarse_voxel: dim = bs x 32 x 32 x 32
-        depth: dim = bs x 64 x 64
+        coarse_voxel shape: BS x 32 x 32 x 32
+        depth_shape: BS x 64 x 64
         '''
-        depth = torch.unsqueeze(depth, dim=1) # bs x 1 x 64 x 64
-        coarse_voxel = torch.unsqueeze(coarse_voxel, dim=1) # bs x 1 x 32 x 32 x 32
-        num_obj = depth.shape[0] #num of pred objects
+        depth = torch.unsqueeze(depth, dim=1)
+        coarse_voxel = torch.unsqueeze(coarse_voxel, dim=1)
+        num_obj = depth.shape[0]
 
-        # Unet like architecture
+        # U-net like architecture
         if coarse_voxel.sum() != 0:
             depth_volume = depth.view(num_obj, -1, 16, 16, 16).to(torch.float)
             depth_st1 = self.depth_upscale(depth_volume) # bs x 1 x 32 x 32 x 32
@@ -205,7 +205,7 @@ class VoxRefiner(torch.nn.Module):
 
 class Decoder(torch.nn.Module):
     """
-    Decoder Module from Pix2Vox++ Implementation
+    Voxel decoder module similar to the Pix2Vox++ implementation.
     """
     def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
         super(Decoder, self).__init__()
@@ -238,22 +238,14 @@ class Decoder(torch.nn.Module):
         )
 
     def forward(self, features):
-        """
-        """
-        num_obj = features.shape[0] #num of pred objects
+        num_obj = features.shape[0]
         if num_obj != 0:
-            gen_volume = features.view(num_obj, -1, 4, 4, 4)
-            #print(gen_volume.size())   # torch.Size([num_obj, 784, 4, 4, 4])
-            gen_volume = self.layer1(gen_volume)
-            #print(gen_volume.size())   # torch.Size([num_obj, 512, 4, 4, 4])
-            gen_volume = self.layer2(gen_volume)
-            #print(gen_volume.size())   # torch.Size([num_obj, 128, 8, 8, 8])
-            gen_volume = self.layer3(gen_volume)
-            #print(gen_volume.size())   # torch.Size([num_obj, 32, 16, 16, 16])
-            gen_volume = self.layer4(gen_volume)
-            #print(gen_volume.size())   # torch.Size([num_obj, 8, 32, 32, 32])
-            gen_volume = self.layer5(gen_volume)
-            #print(gen_volume.size())   # torch.Size([num_obj, 1, 32, 32, 32])
+            gen_volume = features.view(num_obj, -1, 4, 4, 4)  # torch.Size([num_obj, 784, 4, 4, 4])
+            gen_volume = self.layer1(gen_volume)  # torch.Size([num_obj, 512, 4, 4, 4])
+            gen_volume = self.layer2(gen_volume)   # torch.Size([num_obj, 128, 8, 8, 8])
+            gen_volume = self.layer3(gen_volume)  # torch.Size([num_obj, 32, 16, 16, 16])
+            gen_volume = self.layer4(gen_volume)  # torch.Size([num_obj, 8, 32, 32, 32])
+            gen_volume = self.layer5(gen_volume)  # torch.Size([num_obj, 1, 32, 32, 32])
         else:
             gen_volume = torch.zeros([1, 1, 32, 32, 32])
 
@@ -271,13 +263,8 @@ class Pix2VoxDecoder(nn.Module):
 
         # Model
         self.decoder = Decoder(cfg, input_shape)
-        #init_weights(self.decoder, init_type='kaiming', init_gain=0.02)
-
-
     def forward(self, x):
-
-        x = self.decoder(x) #Batchsize x channels x H x W
-
+        x = self.decoder(x)  # BS x C x H x W
         return x
 
 

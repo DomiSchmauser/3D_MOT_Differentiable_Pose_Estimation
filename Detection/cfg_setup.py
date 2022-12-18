@@ -36,7 +36,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         else:
             cfg.DATASETS.TEST = ("office_inference",)
 
-    cfg.TEST.EVAL_PERIOD = 50 #2000
+    cfg.TEST.EVAL_PERIOD = 1000 #2000
     cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False

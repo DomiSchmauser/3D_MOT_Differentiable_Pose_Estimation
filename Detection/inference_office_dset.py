@@ -1,26 +1,23 @@
 import logging
-import os, sys, shutil, re, traceback, time, json, random
+import os, sys, re
 import torch
 import cv2
 import numpy as np
 from torch.utils.data import DataLoader
-from detectron2.data.samplers import TrainingSampler
-import roi_heads #Required for call register()
 
 import warnings
 warnings.filterwarnings('ignore')
 
-from detectron2.checkpoint import DetectionCheckpointer, PeriodicCheckpointer
+from detectron2.checkpoint import DetectionCheckpointer
 
-from detectron2.engine import default_argument_parser, default_writers, launch
+from detectron2.engine import default_argument_parser, launch
 from detectron2.utils.visualizer import Visualizer, ColorMode
-from detectron2.engine import DefaultTrainer, DefaultPredictor
+from detectron2.engine import DefaultTrainer
 from detectron2.modeling import build_model
 
 
 from cfg_setup import init_cfg
-from tracker.postprocess import postprocess_dets_office
-from dvis import dvis
+from Detection.utils.postprocess import postprocess_dets_office
 
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
@@ -29,7 +26,6 @@ from baseconfig import CONF
 from Tracking.options import Options
 from Tracking.tracker.tracking_front import Tracker
 from Tracking.visualise.visualise import visualise_pred_sequence_office, visualise_gt_sequence_office
-from Tracking.utils.vis_utils import fuse_pose
 
 options = Options()
 opts = options.parse()
@@ -43,8 +39,6 @@ from Detection.data.office_dataset import Office_dataset
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 from scipy.ndimage import gaussian_filter1d
-from scipy import interpolate
-
 
 logger = logging.getLogger("front_logger")
 

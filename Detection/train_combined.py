@@ -1,13 +1,11 @@
 import logging
-import os, sys, shutil, re, traceback, time, json
+import os, sys, shutil, re, traceback, json
 import torch
-import math
 import datetime
 import numpy as np
 import pandas as pd
 #from torch.utils.data.sampler import SequentialSampler, BatchSampler
 from detectron2.data.samplers import TrainingSampler
-import roi_heads #Required for call register()
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -19,12 +17,12 @@ from detectron2.checkpoint import DetectionCheckpointer, PeriodicCheckpointer
 from detectron2.engine import default_argument_parser, default_writers, launch
 from detectron2.evaluation import print_csv_format
 
-from detectron2.engine import DefaultTrainer, DefaultPredictor
+from detectron2.engine import DefaultTrainer
 from detectron2.data import build_detection_test_loader, build_detection_train_loader
 
 from detectron2.modeling import build_model
 from detectron2.solver import build_lr_scheduler, build_optimizer
-from detectron2.utils.events import EventStorage, get_event_storage
+from detectron2.utils.events import EventStorage
 
 from register_dataset import RegisterDataset
 from data.mapper_heads import VoxNocsMapper
@@ -33,7 +31,7 @@ from evaluator.CocoEvaluator import COCOEvaluator
 from evaluator.EvaluatorUtils import inference_on_dataset_voxnocs, inference_on_dataset_coco
 from Utility.analyse_datset import get_dataset_info
 from cfg_setup import init_cfg
-from tracker.postprocess import postprocess_dets
+from Detection.utils.postprocess import postprocess_dets
 
 sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
@@ -52,7 +50,7 @@ if opts.use_graph:
 else:
     from Tracking.trainer import Trainer
 
-from Tracking.utils.eval_utils import get_precision, get_recall, get_f1, get_MOTA, get_mota_df
+from Tracking.utils.eval_utils import get_mota_df
 
 
 logger = logging.getLogger("front_logger")
