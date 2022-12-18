@@ -20,8 +20,8 @@ CONF.PATH.FRONTTEXT = os.path.join(CONF.PATH.FRONTDATA, "3D-FRONT-texture")
 # Detection
 
 # MOTFront storage folder
-#CONF.PATH.DETECTDATA = os.path.join('/home/dominik/Schreibtisch/Graph3DMOT/Detection', 'front_dataset/')
-CONF.PATH.DETECTDATA = os.path.join(CONF.PATH.DETECT, 'front_dataset/')
+CONF.PATH.DETECTDATA = os.path.join('/home/dominik/Schreibtisch/Graph3DMOT/Detection', 'front_dataset/')
+#CONF.PATH.DETECTDATA = os.path.join(CONF.PATH.DETECT, 'front_dataset/')
 #CONF.PATH.DETECTDATA = '/mnt/raid/schmauser/'
 CONF.PATH.DETECTTRAIN = os.path.join(CONF.PATH.DETECTDATA, 'train')
 CONF.PATH.DETECTVAL = os.path.join(CONF.PATH.DETECTDATA, 'val')

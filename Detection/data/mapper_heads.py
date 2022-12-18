@@ -67,7 +67,7 @@ class VoxNocsMapper:
     def __call__(self, dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)
 
-        image = utils.read_image(dataset_dict["file_name"], format=self.image_format) # H x W x C
+        image = utils.read_image(dataset_dict["file_name"], format=self.image_format)  # H x W x C
         utils.check_image_size(dataset_dict, image)
 
         sem_seg_gt = None
@@ -75,26 +75,20 @@ class VoxNocsMapper:
         aug_input = T.AugInput(image, sem_seg=sem_seg_gt)
         transforms = self.augmentations(aug_input)
         image, sem_seg_gt = aug_input.image, aug_input.sem_seg
-        image_shape = image.shape[:2]  # h, w
+        image_shape = image.shape[:2]  # H, W
 
-        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1))) # C x H x W
+        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))  # C x H x W
 
         nocs_map = self.get_nocs(dataset_dict["nocs_map"])
         depth_map = self.load_hdf5(dataset_dict["depth_map"])
-        campose = dataset_dict["campose"]
-
-
         dataset_dict["depth_map"] = depth_map
         dataset_dict["nocs_map"] = nocs_map
+        campose = dataset_dict["campose"]
 
         for anno in dataset_dict['annotations']:
-            voxel = get_voxel(anno["voxel"], anno["scale"])
-            nocs_obj = crop_segmask(nocs_map, anno['bbox'], anno['segmentation'])
-            depth_obj = self.crop_depth(depth_map, anno['bbox'], anno['segmentation'])
-
-            anno["voxel"] = voxel
-            anno["nocs"] = nocs_obj
-            anno["depth"] = depth_obj
+            anno["voxel"] = get_voxel(anno["voxel"], anno["scale"])
+            anno["nocs"] = crop_segmask(nocs_map, anno['bbox'], anno['segmentation'])
+            anno["depth"] = self.crop_depth(depth_map, anno['bbox'], anno['segmentation'])
 
         if "annotations" in dataset_dict:
             self._transform_annotations(dataset_dict, transforms, image_shape)

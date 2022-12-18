@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+import sys
 import torch
 import numpy as np
 import logging
@@ -9,7 +9,7 @@ from detectron2.structures import Boxes, pairwise_iou
 from detectron2.structures import BitMasks
 from torch import nn
 from typing import Dict
-import sys
+
 sys.path.append('..') #Hack add ROOT DIR
 from Detection.utils.train_utils import init_weights, symmetry_smooth_l1_loss, symmetry_bin_loss, crop_nocs, nocs_prob_to_value
 from Detection.utils.train_utils import PoseLoss
@@ -22,41 +22,33 @@ logger.setLevel(logging.DEBUG)
 ROI_NOCS_HEAD_REGISTRY = Registry("ROI_NOCS_HEAD")
 
 
-def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_weight=1.5,
-              iou_thres=0.5, cls_mapping=None, use_bin_loss=False, num_bins=32, start_iter_pose=None, current_iter=None):
-    '''
+def nocs_loss(
+        pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_weight=1.5,
+        iou_threshold=0.5, cls_mapping=None, use_bin_loss=False, num_bins=32, get_pose_loss=False
+):
+    """
     Calculate loss between predicted and gt nocs map if same category id and max IoU box > threshold
-    per batch
-    iou_thres: IoU threshold used for positive samples for loss calculation
-    cls_mapping: class id to name mapping used for symmetry in loss
-    use_bin_loss: if true use classification loss else use smooth l1 loss
-    '''
+    batchwise.
+    Args:
+        iou_threshold: IoU threshold used for positive samples for loss calculation
+        cls_mapping: Class id to name mapping used for symmetry in loss
+        use_bin_loss: If true use classification loss else use smooth l1 loss
+        get_pose_loss: Start calculating the pose loss only after stable nocs predictions/ warmup time
+    """
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     l1_loss = 0
     gen_pose_loss = 0
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     start_instance = 0
     num_instances_overlap = 0
     pose_loss_criterion = PoseLoss(max_points=500)
 
-
     for instances_per_image in instances:
         if len(instances_per_image) == 0:
+            logger.warning('No instances in the given image.')
             continue
 
         end_instance = start_instance + len(instances_per_image)
-
-        gt_classes_per_image = instances_per_image.gt_classes.to(dtype=torch.int64)
-        gt_boxes_per_image = instances_per_image.gt_boxes
-        gt_nocs_per_image = instances_per_image.gt_nocs
-        gt_binmasks = BitMasks.from_polygon_masks(instances_per_image.gt_masks, 240, 320).tensor
-        gt_depth_objs = instances_per_image.gt_depth
-        gt_campose = instances_per_image.gt_campose
-        gt_3dboxs = instances_per_image.gt_3dboxes
-        gt_rots = instances_per_image.gt_rot
-        gt_locs = instances_per_image.gt_loc
-        gt_scales = instances_per_image.gt_scale
-        gt_voxel_logits = instances_per_image.gt_voxels.to(dtype=torch.float)
 
         for i in range(start_instance, end_instance):
 
@@ -65,22 +57,22 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
             patch_heigth = int(abs_pred_box[3] - abs_pred_box[1])  # Y
             patch_width = int(abs_pred_box[2] - abs_pred_box[0])  # X
 
-            pred_nocs = pred_nocsmap[i] #  (32) x C x 28 x 28 (bin)
+            pred_nocs = pred_nocsmap[i] #  32 x C x 28 x 28 (bin)
 
-            ious = pairwise_iou(gt_boxes_per_image, pred_box)
+            ious = pairwise_iou(instances_per_image.gt_boxes, pred_box)
             idx_max_iou = int(torch.argmax(ious))
             max_iou = ious[idx_max_iou]
 
-            if max_iou >= iou_thres:
+            if max_iou >= iou_threshold:
 
                 num_instances_overlap += 1
 
-                gt_box = gt_boxes_per_image.tensor[idx_max_iou,:].to(dtype=torch.int64)
+                gt_box = instances_per_image.gt_boxes.tensor[idx_max_iou,:].to(dtype=torch.int64)
 
-                gt_nocs = gt_nocs_per_image[idx_max_iou, :, :, :] # H x W x C
+                gt_nocs = instances_per_image.gt_nocs[idx_max_iou, :, :, :] # H x W x C
                 gt_nocs = torch.squeeze(crop_nocs(gt_nocs), dim=0).to(device=device)  # C x H x W
 
-                gt_cls = cls_mapping[gt_classes_per_image[idx_max_iou]]
+                gt_cls = cls_mapping[instances_per_image.gt_classes.to(dtype=torch.int64)[idx_max_iou]]
 
                 # Get overlapping pixels for loss computation -> Positive ROIs
                 x_min = int(torch.max(torch.tensor([gt_box[0], abs_pred_box[0]])))
@@ -90,27 +82,7 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
 
                 # Symmetry Loss: Rotate gt_overlap 90,180,270 degree around y_axis and take min
                 if use_bin_loss:
-                    # Roi Align pred nocs to pred box shape
-                    tmp_box = [torch.unsqueeze(
-                        torch.tensor([0, 0, pred_nocs.shape[3], pred_nocs.shape[2]], dtype=torch.float32,
-                                     device=device), dim=0)] * num_bins
-                    pred_patch = roi_align(pred_nocs.to(device=device), tmp_box,
-                                           output_size=(patch_heigth, patch_width), aligned=True) # num_bins x 3 x H x W
-
-                    # Full image patches
-                    full_patch = torch.zeros(num_bins, 3, 240, 320)
-                    full_patch[:, :, abs_pred_box[1]:abs_pred_box[3], abs_pred_box[0]:abs_pred_box[2]] = pred_patch
-
-                    gt_patch = torch.zeros(3, 240, 320)
-                    gt_patch[:, gt_box[1]:gt_box[3], gt_box[0]:gt_box[2]] = gt_nocs
-
-                    # Loss only on overlap ROI with GT
-                    pred_overlap = full_patch[:, :, y_min:y_max, x_min:x_max]  # binsxCxHxW
-                    gt_overlap = gt_patch[:, y_min:y_max, x_min:x_max]  # CxHxW
-                    # print(pred_overlap.shape, max_iou, pred_patch.shape)
-
-                    obj_loss = symmetry_bin_loss(gt_overlap, pred_overlap, gt_cls=gt_cls, num_bins=num_bins)
-
+                    raise NotImplementedError
                 else:
                     # Roi Align pred nocs to pred box shape
                     tmp_box = [torch.unsqueeze(
@@ -122,34 +94,30 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
                     reshaped_patch = torch.clone(pred_patch.permute(1, 2, 0).contiguous())  # HxWxC
 
                     # pose Predictions
-                    gt_depth = gt_depth_objs[idx_max_iou, :, :]  # H x W
-                    campose = gt_campose[idx_max_iou, :, :]  # 4 x 4
-                    gt_bbox_loc = gt_3dboxs[idx_max_iou, :, :] # 8 x 3
-                    gt_rot = gt_rots[idx_max_iou, :] # 3
+                    gt_depth = instances_per_image.gt_depth[idx_max_iou, :, :]  # H x W
+                    campose = instances_per_image.gt_campose[idx_max_iou, :, :]  # 4 x 4
+                    gt_bbox_loc = instances_per_image.gt_3dboxes[idx_max_iou, :, :] # 8 x 3
+                    gt_rot = instances_per_image.gt_rot[idx_max_iou, :] # 3
 
                     euler = mathutils.Euler(gt_rot.detach().cpu().numpy())
                     gt_rot = torch.from_numpy(np.array(euler.to_matrix())).to(device)
 
-                    gt_loc = gt_locs[idx_max_iou, :] # 3
-                    gt_scale = gt_scales[idx_max_iou, :] # 3
+                    gt_loc = instances_per_image.gt_loc[idx_max_iou, :] # 3
+                    gt_scale = instances_per_image.gt_scale[idx_max_iou, :] # 3
+                    gt_binmasks = BitMasks.from_polygon_masks(instances_per_image.gt_masks, 240, 320).tensor
                     gt_binmask = gt_binmasks[idx_max_iou, :, :] # H x W
-                    gt_voxel = gt_voxel_logits[idx_max_iou, :, : ,:]
+                    gt_voxel = instances_per_image.gt_voxels.to(dtype=torch.float)[idx_max_iou, :, : ,:]
                     obj_pc = vox2pc(gt_voxel)
-                    pred_rot = None
-
-                    if current_iter > int(start_iter_pose):
-
+                    obj_pose_loss = 0
+                    if get_pose_loss:
                         pred_rot, pred_trans, pred_scale, _, _, _ = \
                             run_pose_torch(reshaped_patch, gt_depth, campose,
                                     gt_binmask, abs_pred_box, gt_3d_box=gt_bbox_loc, use_RANSAC=False, device=device)
 
-                    if pred_rot is not None:
-                        # 7 DoF Object pose Loss using sampled points from complete object geometry
-                        obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
-                                                            pred_scale, obj_pc)
-                    else:
-                        obj_pose_loss = 0
-
+                        if pred_rot is not None:
+                            # 7 DoF Object pose loss using sampled points from complete object geometry
+                            obj_pose_loss = pose_loss_criterion(gt_rot, gt_loc, gt_scale, pred_rot, pred_trans,
+                                                                pred_scale, obj_pc)
                     # Full image patches
                     full_patch = torch.zeros(3, 240, 320)
                     full_patch[:, abs_pred_box[1]:abs_pred_box[3], abs_pred_box[0]:abs_pred_box[2]] = pred_patch
@@ -167,12 +135,9 @@ def nocs_loss(pred_nocsmap, instances, pred_boxes, l1_loss_weight=3, pose_loss_w
                 gen_pose_loss += obj_pose_loss
 
         start_instance = end_instance
+    total_loss = (l1_loss * l1_loss_weight + gen_pose_loss * pose_loss_weight) / num_instances_overlap
 
-    l1_loss = l1_loss * l1_loss_weight / num_instances_overlap
-    gen_pose_loss = gen_pose_loss * pose_loss_weight / num_instances_overlap
-    total_loss = l1_loss + gen_pose_loss
-
-    return total_loss, None
+    return total_loss
 
 def nocs_inference(pred_nocsmap, pred_instances, use_bin_loss=False, num_bins=32): # shape num obj 3x  28 x 28  (RGB), Num img x num obj ...
 

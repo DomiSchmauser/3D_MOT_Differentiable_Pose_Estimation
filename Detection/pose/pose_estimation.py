@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 from detectron2.utils.visualizer import GenericMask
 from detectron2.structures import BoxMode
 
-sys.path.append('../..') #Hack add ROOT DIR
+sys.path.append('..')
 from baseconfig import CONF
 
-from pose_estimation.pose_utils import estimateSimilarityTransform, umeyama_torch, estimateSimilarityTransform_torch
+from Detection.pose.pose_utils import estimateSimilarityTransform, umeyama_torch, estimateSimilarityTransform_torch
 
 def backproject_torch(depth, intrinsics, bin_mask, device=None):
     '''

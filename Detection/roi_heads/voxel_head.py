@@ -22,10 +22,12 @@ logger.setLevel(logging.DEBUG)
 ROI_VOXEL_HEAD_REGISTRY = Registry("ROI_VOXEL_HEAD")
 
 
-def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thres=0.5, use_refiner=True,
-               refiner=None):
+def voxel_loss(
+        pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_threshold=0.5, refiner=None
+):
     '''
-    Calculate BCE loss between predicted 32³ voxel grid and GT voxel grid if IoU larger threshold
+    Calculates the balanced BCE loss between a predicted 32³ voxel grid and a GT voxel grid.
+    Only calcluate the loss if the 2D bounding box IoU is larger than a threshold.
     '''
 
     start_instance = 0
@@ -44,7 +46,7 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
         end_instance = start_instance + len(instances_per_image)
 
         gt_voxel_logits = instances_per_image.gt_voxels.to(dtype=torch.float)
-        gt_depth_objs = instances_per_image.gt_depth
+        gt_depth_map = instances_per_image.gt_depth
         gt_boxes_per_image = instances_per_image.gt_boxes
 
         for i in range(start_instance, end_instance):
@@ -52,22 +54,23 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
             abs_pred_box = pred_boxes[i, :].to(dtype=torch.int64)
             pred_box = Boxes(torch.unsqueeze(abs_pred_box, dim=0))  # XYXY
 
-            pred_voxel = pred_voxel_logits[i,:,:,:]
+            pred_voxel = pred_voxel_logits[i, :, :, :]
 
-            if torch.sum(pred_voxel) == 0: # empty detections
+            if torch.sum(pred_voxel) == 0:
+                logger.warning("Empty instance given to voxel head, skipping. ")
                 continue
 
             ious = pairwise_iou(gt_boxes_per_image, pred_box)
             idx_max_iou = int(torch.argmax(ious))
             max_iou = ious[idx_max_iou]
 
-            if max_iou >= iou_thres:
+            if max_iou >= iou_threshold:
 
                 gt_voxel = gt_voxel_logits[idx_max_iou,:,:,:]
-                gt_depth = gt_depth_objs[idx_max_iou, :, :] # H x W
+                gt_depth = gt_depth_map[idx_max_iou, :, :] # H x W
                 gt_box = torch.squeeze(gt_boxes_per_image[idx_max_iou].tensor, dim=0) # XYXY
 
-                if use_refiner and refiner is not None:
+                if refiner is not None:
                     depth_crop = gt_depth[int(gt_box[1]):int(gt_box[3]), int(gt_box[0]):int(gt_box[2])]  # H x W
                     norm_depth_crop = resize_transform(torch.unsqueeze(depth_crop, dim=0))
                     pred_voxel = refiner(torch.unsqueeze(pred_voxel, dim=0), norm_depth_crop)
@@ -94,14 +97,13 @@ def voxel_loss(pred_voxel_logits, instances, pred_boxes, loss_weight=1, iou_thre
     return voxel_loss, gt_voxels
 
 
-def voxel_inference(pred_voxel_logits, pred_instances, use_refiner=True, refiner=None, depth=None):
+def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None):
     """
     Args:
         pred_voxel_logits shape: number_objects x 1 x dims x H x W
         pred_instances shape: number_images x instance class
     """
 
-    voxel_probs_pred = pred_voxel_logits
     num_boxes_per_image = [len(i) for i in pred_instances]
     resize_transform = T.Resize((64, 64))
 
@@ -113,43 +115,44 @@ def voxel_inference(pred_voxel_logits, pred_instances, use_refiner=True, refiner
         logger.warning('No depth annotation given.')
         return
 
-    voxel_probs_pred = voxel_probs_pred.split(num_boxes_per_image, dim=0)
+    voxel_pred_split = pred_voxel_logits.split(num_boxes_per_image, dim=0)
 
-    # Assign predicted voxels   # instances and predictions different len -> moving idx
-    for inst, prob, d in zip(pred_instances, voxel_probs_pred, depth[0]):
+    for pred_instances_per_img, pred_voxels_per_img in zip(pred_instances, voxel_pred_split):
 
-        if len(inst) == 0:
+        if len(pred_instances_per_img) == 0:
             logger.warning('No predicted instances found.')
             continue
 
-        if use_refiner:
-            prob_preds = []
-            img_bboxs = inst.get('pred_boxes').tensor
-            num_objs = img_bboxs.shape[0]
-            for i in range(num_objs):
-                bbox = img_bboxs[i]  # format xyxy abs
-                depth_crop = d[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]  # H x W
+        voxel_preds = []
+        if refiner is not None:
+            img_bboxes = pred_instances_per_img.get('pred_boxes').tensor
+            num_objs = img_bboxes.shape[0]
+            for instance_idx in range(num_objs):
+                bbox = img_bboxes[instance_idx]  # xyxy absolute
+                depth_crop = depth[0][0][int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]  # H x W
                 if (depth_crop.shape[0] < 2) or (depth_crop.shape[1] < 2):
-                    pred_voxel = prob
-                    logger.warning('Bounding box prediction width or height < 2 pixel, skipping refinement.')
+                    pred_voxel = pred_voxels_per_img[instance_idx]
+                    logger.warning('Bounding box prediction width or height < 2 pixel, skipping refinement step.')
                 else:
                     norm_depth_crop = resize_transform(torch.unsqueeze(depth_crop, dim=0))
-                    pred_voxel = refiner(torch.squeeze(prob[i], dim=1), norm_depth_crop)
-                prob_preds.append(pred_voxel)
-            prob_preds = torch.cat(prob_preds, dim=0)
-
-        if prob_preds.sum() == 0:
-            inst.pred_voxels = torch.tensor([]).cuda()
+                    pred_voxel = refiner(torch.squeeze(pred_voxels_per_img[instance_idx], dim=1), norm_depth_crop)
+                voxel_preds.append(pred_voxel)
+            voxel_preds = torch.cat(voxel_preds, dim=0)
         else:
-            inst.pred_voxels = torch.squeeze(prob_preds, dim=1)  # (Num inst in 1 img, D, H, W)
+            raise ValueError("Voxel Refiner is None.")
+
+        if voxel_preds.sum() == 0:
+            pred_instances_per_img.pred_voxels = torch.tensor([]).cuda()
+        else:
+            pred_instances_per_img.pred_voxels = torch.squeeze(voxel_preds, dim=1)  # inst_per_img x 32 x 32 x 32
 
 @ROI_VOXEL_HEAD_REGISTRY.register()
-class VoxRefiner(torch.nn.Module):
+class VoxelRefiner(torch.nn.Module):
     """
     Voxel grid refinement network using GT depth information.
     """
     def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
-        super(VoxRefiner, self).__init__()
+        super(VoxelRefiner, self).__init__()
 
         self.input_shape = input_shape # has to be bs x 2 x 32 x 32 x 32 -> output has to be bs x 1 x 32 x 32 x 32
 
@@ -253,13 +256,13 @@ class Decoder(torch.nn.Module):
 
 
 @ROI_VOXEL_HEAD_REGISTRY.register()
-class Pix2VoxDecoder(nn.Module):
+class VoxelDecoder(nn.Module):
     """
     A voxel head with several conv layers, plus an upsample layer.
     """
 
     def __init__(self, cfg, input_shape):
-        super(Pix2VoxDecoder, self).__init__()
+        super(VoxelDecoder, self).__init__()
 
         # Model
         self.decoder = Decoder(cfg, input_shape)

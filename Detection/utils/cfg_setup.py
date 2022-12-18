@@ -36,7 +36,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         else:
             cfg.DATASETS.TEST = ("office_inference",)
 
-    cfg.TEST.EVAL_PERIOD = 50 #2000
+    cfg.TEST.EVAL_PERIOD = 1000 #2000
     cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False
@@ -68,9 +68,9 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.1
 
     if not office:
-        cfg.MODEL.PIXEL_MEAN = [59.64, 61.96, 64.02] # MOTFront
+        cfg.MODEL.PIXEL_MEAN = [59.64, 61.96, 64.02]  # MOTFront
     else:
-        cfg.MODEL.PIXEL_MEAN = [92.0080866, 98.01352945, 121.7431208] # office
+        cfg.MODEL.PIXEL_MEAN = [92.0080866, 98.01352945, 121.7431208]  # Office
 
     cfg.MODEL.PIXEL_STD = [1, 1, 1]
     cfg.MODEL.MASK_ON = True
@@ -83,9 +83,8 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         cfg.MODEL.VOXEL_ON = True
         cfg.MODEL.ROI_VOXEL_HEAD.LOSS_WEIGHT = 0.015
 
-    cfg.MODEL.ROI_VOXEL_HEAD.NAME = 'Pix2VoxDecoder'
-    cfg.MODEL.ROI_VOXEL_HEAD.REFINER_NAME = 'VoxRefiner'
-    cfg.MODEL.ROI_VOXEL_HEAD.USE_REFINER = True # Use voxel refinement branch with depth information
+    cfg.MODEL.ROI_VOXEL_HEAD.NAME = 'VoxelDecoder'
+    cfg.MODEL.ROI_VOXEL_HEAD.REFINER_NAME = 'VoxelRefiner'
     cfg.MODEL.ROI_VOXEL_HEAD.POOLER_RESOLUTION = 14
     cfg.MODEL.ROI_VOXEL_HEAD.POOLER_TYPE = "ROIAlign"
     cfg.MODEL.ROI_VOXEL_HEAD.POOLER_SAMPLING_RATIO = 0
@@ -102,7 +101,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     else:
         cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT = 3 # NOCS LOSS
     cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT = 3 # pose LOSS
-    cfg.MODEL.ROI_NOCS_HEAD.START_ITER_POSE = 20000 / 4
+    cfg.MODEL.ROI_NOCS_HEAD.START_ITERATION_POSE = 20000 / 4
     cfg.MODEL.ROI_NOCS_HEAD.IOU_THRES = 0.5
     cfg.MODEL.ROI_NOCS_HEAD.NAME = 'NocsDecoder'
     cfg.MODEL.ROI_NOCS_HEAD.POOLER_RESOLUTION = 14

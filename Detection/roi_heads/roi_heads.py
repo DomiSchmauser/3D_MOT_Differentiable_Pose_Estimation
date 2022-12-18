@@ -1,7 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 from typing import Dict
-import numpy as np
-import sys
 from detectron2.layers import ShapeSpec, cat
 from detectron2.modeling import ROI_HEADS_REGISTRY
 from detectron2.modeling.poolers import ROIPooler
@@ -14,19 +11,16 @@ from roi_heads.voxel_head import (
     voxel_inference,
     voxel_loss,
 )
-
 from roi_heads.nocs_head import (
     build_nocs_head,
     nocs_inference,
     nocs_loss,
 )
 
-import torch
-
 @ROI_HEADS_REGISTRY.register()
 class VoxelNocsHeads(StandardROIHeads):
     """
-    The ROI specific heads for Voxel and Nocs branch
+    The ROI specific heads for Voxel and Nocs branch.
     """
 
     def __init__(self, cfg, input_shape: Dict[str, ShapeSpec]):
@@ -40,22 +34,21 @@ class VoxelNocsHeads(StandardROIHeads):
         self.metadata = MetadataCatalog.get(self.train_dataset_names)
         if 'thing_classes' in self.metadata.as_dict():
             self.class_mapping = self.metadata.thing_classes
-        self.iter = 0
+        self.iteration = 0
 
 
     def _init_voxel_head(self, cfg, input_shape):
 
         self.voxel_on = cfg.MODEL.VOXEL_ON
         self.voxel_loss_weight = cfg.MODEL.ROI_VOXEL_HEAD.LOSS_WEIGHT
-        self.use_refiner = cfg.MODEL.ROI_VOXEL_HEAD.USE_REFINER
 
         if not self.voxel_on:
             return
 
         voxel_pooler_resolution = cfg.MODEL.ROI_VOXEL_HEAD.POOLER_RESOLUTION
-        voxel_pooler_scales     = tuple(1.0 / input_shape[k].stride for k in self.in_features)
-        voxel_sampling_ratio    = cfg.MODEL.ROI_VOXEL_HEAD.POOLER_SAMPLING_RATIO
-        voxel_pooler_type       = cfg.MODEL.ROI_VOXEL_HEAD.POOLER_TYPE
+        voxel_pooler_scales = tuple(1.0 / input_shape[k].stride for k in self.in_features)
+        voxel_sampling_ratio = cfg.MODEL.ROI_VOXEL_HEAD.POOLER_SAMPLING_RATIO
+        voxel_pooler_type = cfg.MODEL.ROI_VOXEL_HEAD.POOLER_TYPE
 
         in_channels = [input_shape[f].channels for f in self.in_features][0]
 
@@ -75,7 +68,7 @@ class VoxelNocsHeads(StandardROIHeads):
 
         self.nocs_on = cfg.MODEL.NOCS_ON
         self.nocs_loss_weight = cfg.MODEL.ROI_NOCS_HEAD.LOSS_WEIGHT
-        self.start_iter_pose = cfg.MODEL.ROI_NOCS_HEAD.START_ITER_POSE
+        self.start_iteration_pose = cfg.MODEL.ROI_NOCS_HEAD.START_ITERATION_POSE
         self.pose_loss_weight = cfg.MODEL.ROI_NOCS_HEAD.POSE_LOSS_WEIGHT
         self.iou_threshold = cfg.MODEL.ROI_NOCS_HEAD.IOU_THRES
         self.use_bin_loss = cfg.MODEL.ROI_NOCS_HEAD.USE_BIN_LOSS
@@ -84,9 +77,9 @@ class VoxelNocsHeads(StandardROIHeads):
         if not self.nocs_on:
             return
         nocs_pooler_resolution = cfg.MODEL.ROI_NOCS_HEAD.POOLER_RESOLUTION
-        nocs_pooler_scales     = tuple(1.0 / input_shape[k].stride for k in self.in_features)
-        nocs_sampling_ratio    = cfg.MODEL.ROI_NOCS_HEAD.POOLER_SAMPLING_RATIO
-        nocs_pooler_type       = cfg.MODEL.ROI_NOCS_HEAD.POOLER_TYPE
+        nocs_pooler_scales = tuple(1.0 / input_shape[k].stride for k in self.in_features)
+        nocs_sampling_ratio = cfg.MODEL.ROI_NOCS_HEAD.POOLER_SAMPLING_RATIO
+        nocs_pooler_type = cfg.MODEL.ROI_NOCS_HEAD.POOLER_TYPE
 
 
         in_channels = [input_shape[f].channels for f in self.in_features][0]
@@ -102,18 +95,21 @@ class VoxelNocsHeads(StandardROIHeads):
         )
         self.nocs_head = build_nocs_head(cfg, shape)
 
-    def forward(self, images, features, proposals, targets=None): # targets imgs x instances
+    def forward(self, images, features, proposals, targets=None):
         """
         See :class:`ROIHeads.forward`.
+        images: ImageList
+        features: Dict with backbone features from the FPN
+        proposals: Anchor proposals
+        targets: GT instances
         """
-
-        instances, losses = super().forward(images, features, proposals, targets) # forward method for default heads (BBOX, MASK) #proposals N = batchsize
+        instances, losses = super().forward(images, features, proposals, targets)
         del images
         if self.training:
             del targets
-            losses.update(self._forward_voxel(features, instances)) # features input data mapping feature map name to tensor, axis 0 = N num images
-            losses.update(self._forward_nocs(features, instances))  # features input data mapping feature map name to tensor, axis 0 = N num images
-            self.iter += 1
+            losses.update(self._forward_voxel(features, instances))
+            losses.update(self._forward_nocs(features, instances))
+            self.iteration += 1
             return [], losses
 
         else:
@@ -161,32 +157,28 @@ class VoxelNocsHeads(StandardROIHeads):
 
         if self.training:
             # The loss is only defined on positive proposals.
-            proposals, _ = select_foreground_proposals(instances, self.num_classes) # gt instances
+            proposals, _ = select_foreground_proposals(instances, self.num_classes)
             proposal_boxes = [x.proposal_boxes for x in proposals]
 
             losses = {}
-            if self.voxel_on:
-                voxel_features = self.voxel_pooler(features, proposal_boxes) #M total number of boxes aggregated over all N batch images x 256 x 14 x 14
-                voxel_logits = self.voxel_head(voxel_features) #Num objs x 1 x 32 x 32 x 32, zeros for empty detection
-                src_boxes = cat([p.tensor for p in proposal_boxes])  # num obj x 4 format XYXY
-                loss_voxel, _ = voxel_loss(
-                    voxel_logits, proposals, src_boxes, loss_weight=self.voxel_loss_weight,
-                    iou_thres=self.iou_threshold, use_refiner=self.use_refiner, refiner=self.voxel_refiner
-                )
-                losses.update({"loss_voxel": loss_voxel})
+            # dim: Number of boxes aggregated over all images in a batch  x 256 x 14 x 14
+            voxel_features = self.voxel_pooler(features, proposal_boxes)
+            voxel_logits = self.voxel_head(voxel_features) #Num objs x 1 x 32 x 32 x 32, zeros for empty detection
+            src_boxes = cat([p.tensor for p in proposal_boxes])
+            loss_voxel, _ = voxel_loss(
+                voxel_logits, proposals, src_boxes, loss_weight=self.voxel_loss_weight,
+                iou_threshold=self.iou_threshold, refiner=self.voxel_refiner
+            )
+            losses.update({"loss_voxel": loss_voxel})
 
             return losses
         else:
             pred_boxes = [x.pred_boxes for x in instances]
-
-            if self.voxel_on:
-
-                voxel_features = self.voxel_pooler(features, pred_boxes) # BS x 256 x 14 x 14
-                voxel_logits = self.voxel_head(voxel_features)
-                voxel_inference(
-                    voxel_logits, instances, use_refiner=self.use_refiner, refiner=self.voxel_refiner, depth=depth
-                )
-
+            voxel_features = self.voxel_pooler(features, pred_boxes)  # BS x 256 x 14 x 14
+            voxel_logits = self.voxel_head(voxel_features)
+            voxel_inference(
+                voxel_logits, instances, refiner=self.voxel_refiner, depth=depth
+            )
             return instances
 
     def _forward_nocs(self, features, instances):
@@ -212,26 +204,23 @@ class VoxelNocsHeads(StandardROIHeads):
             proposal_boxes = [x.proposal_boxes for x in proposals]
 
             losses = {}
-            if self.nocs_on:
-                nocs_features = self.nocs_pooler(features, proposal_boxes) #M total number of boxes aggregated over all N batch images
-                nocs_map_rgb = self.nocs_head(nocs_features) # num obj x 3 x 28 x 28  (l1), num obj x num bins x 3 x 28 x 28 (bin)
-                src_boxes = cat([p.tensor for p in proposal_boxes]) #num obj x 4 format XYXY
-                loss_nocs, _ = nocs_loss(
-                    nocs_map_rgb, proposals, src_boxes, l1_loss_weight=self.nocs_loss_weight,
-                    pose_loss_weight=self.pose_loss_weight, iou_thres=self.iou_threshold,
-                    cls_mapping=self.class_mapping, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins,
-                    start_iter_pose=self.start_iter_pose, current_iter=self.iter
-                )
-                losses.update({"loss_nocs": loss_nocs})
+            get_pose_loss = self.iteration > self.start_iteration_pose
+            nocs_features = self.nocs_pooler(features, proposal_boxes)
+            nocs_map_rgb = self.nocs_head(nocs_features)  # num_obj x 3 x 28 x 28
+            src_boxes = cat([p.tensor for p in proposal_boxes])
+            loss_nocs = nocs_loss(
+                nocs_map_rgb, proposals, src_boxes, l1_loss_weight=self.nocs_loss_weight,
+                pose_loss_weight=self.pose_loss_weight, iou_thres=self.iou_threshold,
+                cls_mapping=self.class_mapping, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins,
+                get_pose_loss=get_pose_loss
+            )
+            losses.update({"loss_nocs": loss_nocs})
 
             return losses
         else:
             pred_boxes = [x.pred_boxes for x in instances]
-
-            if self.nocs_on:
-
-                nocs_features = self.nocs_pooler(features, pred_boxes) # BS x 256 x 14 x 14
-                nocs_map_rgb = self.nocs_head(nocs_features) # BS x 3 x 28 x 28 (RGB)
-                nocs_inference(nocs_map_rgb, instances, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins)
+            nocs_features = self.nocs_pooler(features, pred_boxes) # BS x 256 x 14 x 14
+            nocs_map_rgb = self.nocs_head(nocs_features) # BS x 3 x 28 x 28 (RGB)
+            nocs_inference(nocs_map_rgb, instances, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins)
 
             return instances

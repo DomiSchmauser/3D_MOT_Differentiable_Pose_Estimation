@@ -58,7 +58,8 @@ class PoseLoss(_Loss):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def forward(self, gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc):
-        return pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=self.max_points, device=self.device)
+        return pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=self.max_points,
+                         device=self.device)
 
 
 def balanced_BCE_loss(gt_voxels, pred_voxels):
