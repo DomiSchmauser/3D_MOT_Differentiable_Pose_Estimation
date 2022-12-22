@@ -7,12 +7,12 @@ import torchvision.transforms as T
 from detectron2.layers import ShapeSpec, cat
 from detectron2.utils.events import get_event_storage
 from detectron2.utils.registry import Registry
-from detectron2.structures import Boxes, BoxMode, pairwise_iou
+from detectron2.structures import Boxes, pairwise_iou
 from torch import nn
 from typing import Dict
 
 sys.path.append('..')
-from Detection.inference.inference_metrics import compute_voxel_iou
+from Detection.utils.inference_metrics import compute_voxel_iou
 from Detection.utils.train_utils import balanced_BCE_loss
 
 logger = logging.getLogger(__name__)

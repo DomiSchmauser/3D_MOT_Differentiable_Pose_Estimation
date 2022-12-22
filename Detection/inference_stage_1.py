@@ -1,19 +1,17 @@
-import cv2, random, os, sys, json
+import cv2, os, sys, json
 import h5py
 import numpy as np
 import torch
 import mathutils
 import matplotlib.pyplot as plt
 import traceback
+import logging
 
-from Detection.utils.cfg_setup import inference_cfg
+from Detection.utils.cfg_setup import get_inference_cfg
 from Detection.data.analyse_dataset import get_dataset_info
 from Detection.data.register_dataset import RegisterDataset
 
 from detectron2.engine import DefaultPredictor
-from detectron2.data import MetadataCatalog
-from detectron2.utils.visualizer import ColorMode
-from detectron2.utils.visualizer import Visualizer
 from detectron2.utils.visualizer import GenericMask
 from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.layers import roi_align
@@ -25,39 +23,15 @@ sys.path.append('..') #Hack add ROOT DIR
 from baseconfig import CONF
 
 from Detection.pose.pose_estimation import run_pose, run_crop_3dbbox, sort_bbox
-from Detection.inference.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff
-from Detection.inference.inference_utils import load_hdf5, log_results, convert_voxel_to_pc, add_halfheight, get_nocs, get_scale
-from Detection.utils.train_utils import get_voxel
+from Detection.utils.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff
+from Detection.utils.inference_utils import load_hdf5, log_results, convert_voxel_to_pc, add_halfheight, get_nocs, \
+    get_scale, visualize_segmentation_results, get_annotations
+from Detection.utils.logging_utils import setup_logging
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-def vis_inference(dataset_dicts, front_metadata):
-    for d in random.sample(dataset_dicts, 3):
-        im = cv2.imread(d["file_name"])
-        outputs = predictor(im)
-        v = Visualizer(im[:, :, ::-1],
-                       metadata=front_metadata,
-                       scale=2.5,
-                       instance_mode=ColorMode.IMAGE_BW
-                       )
-        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        cv2.imshow("front_inference", out.get_image()[:, :, ::-1])
-        cv2.waitKey(0)
-
-def vis_inference_2(dataset_dicts, front_metadata):
-    img_plot = [5, 80, 124]
-    for n in img_plot:
-        im = cv2.imread(dataset_dicts[n]["file_name"])
-        outputs = predictor(im)
-        v = Visualizer(im[:, :, ::-1],
-                       metadata=front_metadata,
-                       scale=2.5,
-                       instance_mode=ColorMode.IMAGE_BW
-                       )
-        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        cv2.imshow("front_inference", out.get_image()[:, :, ::-1])
-        cv2.waitKey(0)
-
-def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, img,
+def inference_on_sequence(instances, depth, campose, gt_annotations , hdf5_dir, idx, img,
                     write_files=True, visualize_pose=False, visualize_voxel=False):
     '''
     Main Inference function: generates voxel and pose predictions and stores them together with meta data in a
@@ -386,34 +360,22 @@ def generate_output(instances, depth, campose, gt_annotations , hdf5_dir, idx, i
         hf.create_dataset('gt_compl_box', data=gt_compl_boxes)  # gt location for vis tracking
         hf.create_dataset('gt_cls', data=gt_classes)  # gt location for vis tracking
         hf.close()
-
-
     return output
 
-def make_pred(split, write_files=True, overwrite=False):
+def run_inference(split, write_files=True, overwrite=False):
 
-    val = []
-
-    if split == "train":
-        data_dir = CONF.PATH.DETECTTRAIN
-    elif split == "val":
-        data_dir = CONF.PATH.DETECTVAL
-    elif split == "test":
-        data_dir = CONF.PATH.DETECTTEST
-    elif split == "vis":
-        data_dir = CONF.PATH.DETECTVIS
-
+    inference_results = []
+    data_dir = os.path.join(CONF.PATH.DETECTDATA, split)
     datafolders = [f for f in os.listdir(os.path.abspath(data_dir))]
-    #random.shuffle(datafolders)
 
     for seq_idx, seq in enumerate(datafolders):
-
-        if (seq_idx + 1) % 10 == 0 or seq_idx == len(datafolders) - 1:
-            print('Inference for sequence {} of {} sequences'.format(seq_idx+1, len(datafolders)))
-
         seq_pred = []
-        png_path = os.path.join(data_dir, seq, 'coco_data')
 
+        if (seq_idx + 1) % 50 == 0 or seq_idx == len(datafolders) - 1:
+            logger.info(f"Inference for sequence {seq_idx+1} of {len(datafolders)} sequences.")
+            log_results(inference_results)
+
+        png_path = os.path.join(data_dir, seq, 'coco_data')
         hdf5_dir = os.path.join(CONF.PATH.TRACKDATA, split, seq)
 
         if not os.path.exists(os.path.join(CONF.PATH.TRACKDATA, split)):
@@ -428,105 +390,74 @@ def make_pred(split, write_files=True, overwrite=False):
         imgs = [f for f in os.listdir(os.path.abspath(png_path)) if not 'json' in f and not 'nocs' in f]
         imgs.sort()
 
-        # Load GT
         json_file = os.path.join(data_dir, seq, "coco_data/coco_annotations.json")
         with open(json_file) as f:
             imgs_anns = json.load(f)
 
         for i, img in enumerate(imgs):
 
-            # Only for debugging
-            nocs_path = os.path.join(png_path, 'nocs_0000.png')
-            nocs = get_nocs(nocs_path)
-
-            # Load GT anns
-            gt_annotations = {'3Dbbox':[], '2Dbbox':[], 'segmentation':[], 'voxel':[], 'voxel_jid':[],
-                              '3Dloc':[], '3Drot':[], '3Dscale':[], 'cls':[], 'obj_id':[], 'nocs': nocs, 'seq':seq}
-
-            for img_anno in imgs_anns["annotations"]:
-                if img_anno['image_id'] == i:
-                    gt_annotations['3Dbbox'].append(np.array(img_anno["3Dbbox"]))
-                    gt_annotations['2Dbbox'].append(img_anno["bbox"])
-                    gt_annotations['segmentation'].append(img_anno["segmentation"])
-                    gt_annotations['voxel'].append(get_voxel(os.path.join(CONF.PATH.VOXELDATA, img_anno['jid'], 'model.binvox'), np.array(img_anno['3Dscale'])))
-                    gt_annotations['voxel_jid'].append(img_anno['jid'])
-                    gt_annotations['3Dloc'].append(add_halfheight(img_anno['3Dloc'].copy(), img_anno['3Dbbox']))
-                    gt_annotations['3Drot'].append(img_anno['3Drot'])
-                    gt_annotations['3Dscale'].append(img_anno['3Dscale'])
-                    gt_annotations['cls'].append(img_anno['category_id'])
-                    gt_annotations['obj_id'].append(img_anno['id'])
-
-            # Load Depth and Campose
-            hdf5_path = os.path.join(data_dir, seq, str(i) + '.hdf5')
-            depth, campose = load_hdf5(hdf5_path)
-            img = np.array(cv2.imread(os.path.join(png_path, img))) #is loaded as bgr
+            gt_annotations = get_annotations(imgs_anns, png_path, seq, i)
+            depth, campose = load_hdf5(os.path.join(data_dir, seq, str(i) + '.hdf5'))
+            img = np.array(cv2.imread(os.path.join(png_path, img)))  # BGR
             instances = predictor(img)['instances']
-
-            output = generate_output(instances, depth, campose, gt_annotations, hdf5_dir, i, img,
-                                     write_files=write_files, visualize_pose=False, visualize_voxel=False)
-            seq_pred.append(output)
-
             try:
-                output = generate_output(instances, depth, campose, gt_annotations, hdf5_dir, i, img,
+                output = inference_on_sequence(instances, depth, campose, gt_annotations, hdf5_dir, i, img,
                                          write_files=write_files, visualize_pose=False, visualize_voxel=False)
                 seq_pred.append(output)
-            except Exception: # scenes to delete since contain empty predictions
+            except:
+                logger.error(f"Inference on sequence {seq} failed.")
                 traceback.print_exc()
-                if os.path.exists('assert_scenes.txt'):
+                if os.path.exists('broken_scenes.txt'):
                     append_write = 'a'
                 else:
                     append_write = 'w'
-                with open('assert_scenes.txt', append_write) as f:
+                with open('broken_scenes.txt', append_write) as f:
                     f.write('{}\n'.format(seq))
                 break
 
-        val.append(seq_pred)
+        inference_results.append(seq_pred)
+    return inference_results
 
-        if (seq_idx + 1) % 50 == 0:
-            print('Inference Results {} after {} sequences:'.format(split, seq_idx+1))
-            log_results(val)
-
-    return val
-
-if __name__=="__main__":
+def setup(dataset_split="test", num_classes=7):
     '''
-    Inference of the Detection, Reconstruction and pose Estimation Pipeline
+    Inference of the Detection, Reconstruction and Pose Estimation Pipeline
      - Loads a pretrained network (best_model.pth) from the model folder
      - Stores inference results in the predicted_data folder in a hdf5 format
+
+    num_classes: Number of object classes in the dataset the model was trained on
     '''
 
-    num_classes = 7  # Set to num classes the model is trained with
-
+    # Dataset setup
     TRAIN_IMG_DIR = CONF.PATH.DETECTTRAIN
-    # Get mapping
+
     mapping_list, name_list = get_dataset_info(TRAIN_IMG_DIR)
     mapping_list, name_list = zip(*sorted(zip(mapping_list, name_list)))
-    if isinstance(name_list, tuple):
-        name_list = list(name_list)
 
-    if isinstance(mapping_list, tuple):
+    if isinstance(name_list, tuple) and isinstance(mapping_list, tuple):
+        name_list = list(name_list)
         mapping_list = list(mapping_list)
 
-    my_cfg = inference_cfg(num_classes)
+    register_dataset = RegisterDataset(mapping_list, name_list)
+    register_dataset.register_to_catalog()
+
+    # Create predictor
+    my_cfg = get_inference_cfg(num_classes)
     predictor = DefaultPredictor(my_cfg)
+    dataset_dicts = RegisterDataset.get_front_dicts(os.path.join(TRAIN_IMG_DIR[:-6], dataset_split))
+    return predictor, dataset_dicts
 
-    RegisterDataset = RegisterDataset(mapping_list, name_list)
-    RegisterDataset.reg_dset()
-
-    split = "test"
-
-    dataset_dicts = RegisterDataset.get_front_dicts(os.path.join(TRAIN_IMG_DIR[:-6], split))
-    if split == 'val':
-        front_metadata = MetadataCatalog.get("front_val")
-    elif split == 'train':
-        front_metadata = MetadataCatalog.get("front_train")
-    elif split == 'test' or 'vis':
-        front_metadata = MetadataCatalog.get("front_test")
+if __name__=="__main__":
+    SPLIT = "test"
+    VISUALIZE_SEGMENTATIONS = False
+    setup_logging()
+    predictor, dataset_dicts = setup(dataset_split=SPLIT, num_classes=7)
 
     # Visualize Segmentation predictions
-    #vis_inference(dataset_dicts, front_metadata)
+    if VISUALIZE_SEGMENTATIONS:
+        visualize_segmentation_results(predictor, dataset_dicts, SPLIT)
 
     # Make predictions
-    metrics = make_pred(split, write_files=True, overwrite=True)
+    inference_results = run_inference(SPLIT, write_files=True, overwrite=True)
 
-    log_results(metrics) # final logging at the end of inference
+    logger.info(f"Finished inference on {SPLIT} set, results: ")
+    log_results(inference_results)

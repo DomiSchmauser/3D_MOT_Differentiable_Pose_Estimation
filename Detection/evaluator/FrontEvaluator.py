@@ -26,8 +26,8 @@ from Detection.evaluator.coco import COCO
 
 sys.path.append('..') #Hack add ROOT DIR
 
-from Detection.inference.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff
-from Detection.inference.inference_utils import convert_voxel_to_pc
+from Detection.utils.inference_metrics import compute_voxel_iou, get_rotation_diff, get_location_diff
+from Detection.utils.inference_utils import convert_voxel_to_pc
 from Detection.pose.pose_estimation import run_pose
 from Detection.utils.train_utils import crop_segmask, get_voxel, symmetry_smooth_l1_loss, balanced_BCE_loss
 

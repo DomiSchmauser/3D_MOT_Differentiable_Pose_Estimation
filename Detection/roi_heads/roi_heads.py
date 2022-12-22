@@ -210,7 +210,7 @@ class VoxelNocsHeads(StandardROIHeads):
             src_boxes = cat([p.tensor for p in proposal_boxes])
             loss_nocs = nocs_loss(
                 nocs_map_rgb, proposals, src_boxes, l1_loss_weight=self.nocs_loss_weight,
-                pose_loss_weight=self.pose_loss_weight, iou_thres=self.iou_threshold,
+                pose_loss_weight=self.pose_loss_weight, iou_threshold=self.iou_threshold,
                 cls_mapping=self.class_mapping, use_bin_loss=self.use_bin_loss, num_bins=self.num_bins,
                 get_pose_loss=get_pose_loss
             )

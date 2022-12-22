@@ -135,8 +135,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     return cfg
 
 
-def inference_cfg(num_classes):
-
+def get_inference_cfg(num_classes):
     train_cfg = init_cfg(num_classes)
     train_cfg.MODEL.WEIGHTS = os.path.join(CONF.PATH.DETECTMODEL, "best_model.pth")  # path to the model we just trained
     train_cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.05

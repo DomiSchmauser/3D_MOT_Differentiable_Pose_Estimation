@@ -1,18 +1,76 @@
 import h5py
 import torch
 import numpy as np
-import sys, cv2
+import sys, cv2, os
 import open3d as o3d
 import copy
+import random
+import logging
 
-from sklearn.metrics import recall_score
-from sklearn.metrics import precision_score
-from sklearn.metrics import f1_score
+from sklearn.metrics import recall_score, precision_score, f1_score
+
+from detectron2.data import MetadataCatalog
+from detectron2.utils.visualizer import ColorMode
+from detectron2.utils.visualizer import Visualizer
 
 sys.path.append('..') #Hack add ROOT DIR
+from baseconfig import CONF
 
-from Detection.inference.inference_metrics import get_mean_iou, get_median_iou
+from Detection.utils.inference_metrics import get_mean_iou, get_median_iou
+from Detection.utils.train_utils import get_voxel
 from Detection.pose.pose_estimation import backproject, cam2world, sort_bbox
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+def visualize_segmentation_results(predictor, dataset_dicts, dataset_split):
+    if dataset_split == 'val' or dataset_split == 'train':
+        front_metadata = MetadataCatalog.get(f"front_{dataset_split}")
+    elif dataset_split == 'test' or 'vis':
+        front_metadata = MetadataCatalog.get("front_test")
+    else:
+        raise ValueError('Unknown dataset split.')
+
+    for d in random.sample(dataset_dicts, 3):
+        im = cv2.imread(d["file_name"])
+        outputs = predictor(im)
+        v = Visualizer(im[:, :, ::-1],
+                       metadata=front_metadata,
+                       scale=2.5,
+                       instance_mode=ColorMode.IMAGE_BW
+                       )
+        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+        cv2.imshow("front_inference", out.get_image()[:, :, ::-1])
+        cv2.waitKey(0)
+
+def get_annotations(imgs_anns, png_path, seq, idx):
+
+    nocs_path = os.path.join(png_path, 'nocs_0000.png')
+    nocs = get_nocs(nocs_path)
+
+    # Load GT anns
+    gt_annotations = {'3Dbbox':[], '2Dbbox':[], 'segmentation':[], 'voxel':[], 'voxel_jid':[],
+                      '3Dloc':[], '3Drot':[], '3Dscale':[], 'cls':[], 'obj_id':[], 'nocs': nocs, 'seq':seq}
+
+    for img_anno in imgs_anns["annotations"]:
+        if img_anno['image_id'] == idx:
+            gt_annotations['3Dbbox'].append(np.array(img_anno["3Dbbox"]))
+            gt_annotations['2Dbbox'].append(img_anno["bbox"])
+            gt_annotations['segmentation'].append(img_anno["segmentation"])
+            gt_annotations['voxel'].append(
+                get_voxel(
+                    os.path.join(CONF.PATH.VOXELDATA, img_anno['jid'], 'model.binvox'), np.array(img_anno['3Dscale'])
+                )
+            )
+            gt_annotations['voxel_jid'].append(img_anno['jid'])
+            gt_annotations['3Dloc'].append(add_halfheight(img_anno['3Dloc'].copy(), img_anno['3Dbbox']))
+            gt_annotations['3Drot'].append(img_anno['3Drot'])
+            gt_annotations['3Dscale'].append(img_anno['3Dscale'])
+            gt_annotations['cls'].append(img_anno['category_id'])
+            gt_annotations['obj_id'].append(img_anno['id'])
+
+    return gt_annotations
 
 
 def get_scale(m):
@@ -224,12 +282,14 @@ def log_results(metrics):
 
     mean_rotation_diff = get_median_iou(thetas)
     mean_distance = get_median_iou(distances)
-
-    print('Voxel_IoU :', mean_voxel_iou, ', Voxel_Chair_IoU :', mean_chair_iou, ', Voxel_Table_IoU :', mean_table_iou,
-          ', Voxel_Sofa_IoU :', mean_sofa_iou, ', Voxel_Bed_IoU :', mean_bed_iou,
-          ', Voxel_TVstand_IoU :', mean_tv_iou, ', Voxel_WineCooler_IoU :', mean_cooler_iou,
-          ', Voxel_NightStand_IoU :', mean_night_iou,
-          ', Rotation Difference [°] :', mean_rotation_diff, ', Location Difference [m] :', mean_distance )
+    logger.info(
+        f"Voxel_IoU: {mean_voxel_iou}, Rotation Difference [°]: {mean_rotation_diff},"
+        + f" Location Difference [m]: {mean_distance}"
+    )
+    logger.info(
+        f" Class-wise voxel IoU: Chair: {mean_chair_iou}, Table: {mean_table_iou}, Sofa: {mean_sofa_iou},"
+        + f" Bed: {mean_bed_iou}, TV Stand: {mean_tv_iou}, Wine cooler: {mean_cooler_iou}, Night stand: {mean_night_iou}"
+    )
 
 def calculate_F2F_metrics(outputs):
 

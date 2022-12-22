@@ -12,7 +12,7 @@ from detectron2.layers import roi_align
 sys.path.append('..') #Hack add ROOT DIR
 
 from Detection.pose.pose_estimation import run_pose, run_crop_3dbbox, sort_bbox, run_pose_office
-from Detection.inference.inference_utils import get_scale, project_segmask_F2F
+from Detection.utils.inference_utils import get_scale, project_segmask_F2F
 
 
 def postprocess_dets(inputs, outputs, obj_threshold=0.35, iou_threshold=0.35, mode='train', vis=False):

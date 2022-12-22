@@ -11,9 +11,9 @@ from torch import nn
 from typing import Dict
 
 sys.path.append('..') #Hack add ROOT DIR
-from Detection.utils.train_utils import init_weights, symmetry_smooth_l1_loss, symmetry_bin_loss, crop_nocs, nocs_prob_to_value
+from Detection.utils.train_utils import init_weights, symmetry_smooth_l1_loss, crop_nocs, nocs_prob_to_value
 from Detection.utils.train_utils import PoseLoss
-from Detection.inference.inference_utils import vox2pc
+from Detection.utils.inference_utils import vox2pc
 from Detection.pose.pose_estimation import run_pose_torch
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ def nocs_inference(pred_nocsmap, pred_instances, use_bin_loss=False, num_bins=32
     if np.array(num_boxes_per_image).sum() == 0:
         return
 
-    # instances and predictions always same len just empty
+    # Instances and predictions always same len just empty
     for prob, instances in zip(nocs_pred, pred_instances):
 
         if len(instances) == 0:
