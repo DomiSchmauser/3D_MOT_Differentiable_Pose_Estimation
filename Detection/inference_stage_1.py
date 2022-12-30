@@ -401,8 +401,10 @@ def run_inference(split, write_files=True, overwrite=False):
             img = np.array(cv2.imread(os.path.join(png_path, img)))  # BGR
             instances = predictor(img)['instances']
             try:
-                output = inference_on_sequence(instances, depth, campose, gt_annotations, hdf5_dir, i, img,
-                                         write_files=write_files, visualize_pose=False, visualize_voxel=False)
+                output = inference_on_sequence(
+                    instances, depth, campose, gt_annotations, hdf5_dir, i, img,
+                    write_files=write_files, visualize_pose=False, visualize_voxel=False
+                )
                 seq_pred.append(output)
             except:
                 logger.error(f"Inference on sequence {seq} failed.")
@@ -456,7 +458,6 @@ if __name__=="__main__":
     if VISUALIZE_SEGMENTATIONS:
         visualize_segmentation_results(predictor, dataset_dicts, SPLIT)
 
-    # Make predictions
     inference_results = run_inference(SPLIT, write_files=True, overwrite=True)
 
     logger.info(f"Finished inference on {SPLIT} set, results: ")
