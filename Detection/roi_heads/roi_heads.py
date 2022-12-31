@@ -111,7 +111,6 @@ class VoxelNocsHeads(StandardROIHeads):
             losses.update(self._forward_nocs(features, instances))
             self.iteration += 1
             return [], losses
-
         else:
             pred_instances = self.forward_with_given_boxes_voxnocs(features, instances, depth=targets)
             return pred_instances, {}
@@ -126,11 +125,9 @@ class VoxelNocsHeads(StandardROIHeads):
                 "pred_boxes" and "pred_classes" to exist.
         Returns:
             instances (Instances): the same `Instances` object, with extra
-                fields such as `pred_masks` or `pred_voxels` or 'pred_nocs.
+                fields such as `pred_masks` or `pred_voxels` or 'pred_nocs'.
         """
         assert not self.training
-        #instances = super().forward_with_given_boxes(features, instances)
-
         assert instances[0].has("pred_boxes") and instances[0].has("pred_classes") and instances[0].has("pred_masks")
 
         instances = self._forward_voxel(features, instances, depth=depth)

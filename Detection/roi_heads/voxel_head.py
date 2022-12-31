@@ -108,11 +108,13 @@ def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None)
     resize_transform = T.Resize((64, 64))
 
     if np.array(num_boxes_per_image).sum() == 0:
-        logger.warning('No predicted instances found for batch.')
+        logger.warning('No predicted instances found for image.')
         return
 
     if depth is None:
-        logger.warning('No depth annotation given.')
+        logger.warning('No depth annotation given. -> No GT instances found for image.')
+        for pred_instances_per_img in pred_instances:
+            pred_instances_per_img.pred_voxels = torch.tensor([]).cuda()
         return
 
     voxel_pred_split = pred_voxel_logits.split(num_boxes_per_image, dim=0)

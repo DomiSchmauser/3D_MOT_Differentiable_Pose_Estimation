@@ -93,34 +93,34 @@ class FrontEvaluator(DatasetEvaluator):
 
     def process(self, inputs, outputs):
         """
-        prepare model inputs and outputs for evaluation
+        Prepare model inputs and outputs for evaluation
         """
         for inp, output in zip(inputs, outputs): # Inputs and Predictions image-wise, Inputs len = BS = 1
-            # Load GT data
             num_objs = len(inp['cat_id'])
             nocs = inp['nocs_map']
             nocs = torch.from_numpy(nocs).to(self._cpu_device)
-            all_nocs = [] # Image-wise nocs objects
-            all_voxel = [] # Image-wise voxel objects
+            per_img_nocs = []
+            per_img_voxel = []
             for m in range(num_objs):
                 obj_nocs = crop_segmask(nocs, inp['boxes'][m], inp['segmap'][m]).to(self._cpu_device)
                 obj_vox = get_voxel(inp['vox'][m], inp['3dscales'][m]).to(self._cpu_device)
-                all_nocs.append(obj_nocs)
-                all_voxel.append(obj_vox)
+                per_img_nocs.append(obj_nocs)
+                per_img_voxel.append(obj_vox)
+
+            self.gt_data['cat_ids'].append(torch.tensor(inp['cat_id']).to(self._cpu_device))
+            self.gt_data['gt_voxels'].append(per_img_voxel)
+            self.gt_data['gt_boxes'].append(torch.tensor(inp['boxes']).to(self._cpu_device))
+            self.gt_data['gt_nocs'].append(per_img_nocs)
+            self.gt_data['depth'].append(inp['depth_map'])
+            self.gt_data['campose'].append(inp['campose'])
+            self.gt_data['gt_3dboxes'].append(torch.tensor(np.stack(inp['3dboxes'], axis=0)).to(self._cpu_device))
+            self.gt_data['gt_rotations'].append(torch.tensor(np.stack(inp['rotations'], axis=0)).to(self._cpu_device))
+            self.gt_data['gt_locations'].append(torch.tensor(np.stack(inp['locations'], axis=0)).to(self._cpu_device))
 
             prediction = {"image_id": inp["image_id"]}
             if "instances" in output:
                 instances = output["instances"].to(self._cpu_device)
                 prediction["instances"] = instances_to_coco_json(instances, inp["image_id"])
-                self.gt_data['cat_ids'].append(torch.tensor(inp['cat_id']).to(self._cpu_device))
-                self.gt_data['gt_voxels'].append(all_voxel)
-                self.gt_data['gt_boxes'].append(torch.tensor(inp['boxes']).to(self._cpu_device))
-                self.gt_data['gt_nocs'].append(all_nocs)
-                self.gt_data['depth'].append(inp['depth_map'])
-                self.gt_data['campose'].append(inp['campose'])
-                self.gt_data['gt_3dboxes'].append(torch.tensor(np.stack(inp['3dboxes'], axis=0)).to(self._cpu_device))
-                self.gt_data['gt_rotations'].append(torch.tensor(np.stack(inp['rotations'], axis=0)).to(self._cpu_device))
-                self.gt_data['gt_locations'].append(torch.tensor(np.stack(inp['locations'], axis=0)).to(self._cpu_device))
             if "proposals" in output:
                 prediction["proposals"] = output["proposals"].to(self._cpu_device)
             if len(prediction) > 1:
@@ -153,22 +153,16 @@ class FrontEvaluator(DatasetEvaluator):
             self._eval_box_proposals(predictions)
         if "instances" in predictions[0]:
             self._eval_predictions(predictions, batch_idx, save_img_pred)
-        # Copy so the caller can do whatever with results
         return copy.deepcopy(self._results)
 
 
     def _tasks_from_predictions(self, predictions):
-        """
-        Get COCO API "tasks" (i.e. iou_type) from COCO-format predictions.
-        """
         tasks = {}
         for pred in predictions:
-
             if "voxel" in pred:
                 tasks.add("vox")
             if "nocs" in pred:
                 tasks.add("nocs")
-
         return sorted(tasks)
 
 
@@ -567,12 +561,10 @@ def instances_to_coco_json(instances, img_id):
 
 
     has_voxels = instances.has("pred_voxels")
-
     if has_voxels:
         voxels = instances.pred_voxels.tolist()
 
     has_nocs = instances.has("pred_nocs")
-
     if has_nocs:
         nocs = instances.pred_nocs.tolist()
 
@@ -586,23 +578,16 @@ def instances_to_coco_json(instances, img_id):
             "image_id": img_id,
             "category_id": classes[k],
             "bbox": boxes[k],
-            "score": scores[k]}
-
+            "score": scores[k]
+        }
         if has_voxels:
             result["voxel"] = voxels[k]
-
         if has_nocs:
             result["nocs"] = nocs[k]
-
         if has_mask:
-            result["segmentation"] = bin_masks[k,:,:]
-
+            result["segmentation"] = bin_masks[k, :, :]
         results.append(result)
     return results
-
-    # inspired from Detectron:
-    # https://github.com/facebookresearch/Detectron/blob/a6a835f5b8208c45d0dce217ce9bbda915f44df7/detectron/datasets/json_dataset_evaluator.py#L255 # noqa
-
 
 def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area="all", limit=None):
     """

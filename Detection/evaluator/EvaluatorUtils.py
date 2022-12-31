@@ -14,14 +14,12 @@ from detectron2.utils.events import get_event_storage
 
 from detectron2.checkpoint import DetectionCheckpointer
 
-
 def inference_on_dataset_voxnocs(model, data_loader, evaluator, logger, cfg, save_img_pred):
 
     checkpointer = DetectionCheckpointer(model, cfg.OUTPUT_DIR)
 
     num_devices = get_world_size()
     logger.info("Start inference on {} images".format(len(data_loader)))
-
 
     total = len(data_loader)  # inference data loader must have a fixed length
     all_res = []
@@ -40,8 +38,6 @@ def inference_on_dataset_voxnocs(model, data_loader, evaluator, logger, cfg, sav
         stack.enter_context(torch.no_grad())
 
         for idx, inputs in enumerate(data_loader):
-            start_single = time.perf_counter()
-
             if idx == num_warmup:
                 start_time = time.perf_counter()
                 total_compute_time = 0
@@ -51,17 +47,17 @@ def inference_on_dataset_voxnocs(model, data_loader, evaluator, logger, cfg, sav
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             total_compute_time += time.perf_counter() - start_compute_time
-            evaluator.process(inputs, outputs) # Process inputs, outputs for images in batch, here batch_size = 1
+            evaluator.process(inputs, outputs)  # 1 image at a time
             iters_after_start = idx + 1 - num_warmup * int(idx >= num_warmup)
             seconds_per_img = total_compute_time / iters_after_start
 
             # Visualise and save 4 image predictions to tensorboard
             if (idx == 0 or idx == math.ceil((total-1)/2) or idx == total-1) and save_img_pred:
-                save_ = True
+                save_img_pred_to_tb = True
             else:
-                save_ = False
+                save_img_pred_to_tb = False
 
-            results = evaluator.evaluate(batch_idx=idx, save_img_pred=save_) # Evaluate
+            results = evaluator.evaluate(batch_idx=idx, save_img_pred=save_img_pred_to_tb)  # Evaluate
             all_res.append(results)
             evaluator.reset()
 

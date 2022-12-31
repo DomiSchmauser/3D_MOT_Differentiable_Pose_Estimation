@@ -31,7 +31,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
         if not office_train:
             cfg.DATASETS.TEST = ("office_inference",)
 
-    cfg.TEST.EVAL_PERIOD = 2000 #2000
+    cfg.TEST.EVAL_PERIOD = 100 #2000
     cfg.TEST.IMG_SAVE_FREQ = 4 # Every 4th evaluation run save pred images to tensorboard
     cfg.TEST.START_EVAL = 1  # Start evaluation after n iterations
     cfg.DATALOADER.ASPECT_RATIO_GROUPING = False
@@ -111,7 +111,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     cfg.SOLVER.WARMUP_METHOD = "linear"
     cfg.SOLVER.GAMMA = 1
     cfg.SOLVER.WEIGHT_DECAY = 0.0005  # L2-Regularization
-    cfg.SOLVER.IMS_PER_BATCH = 8  # Batch size #8
+    cfg.SOLVER.IMS_PER_BATCH = 2  # Batch size #8
     cfg.SOLVER.BASE_LR = 0.008  # for joint set lower e.g 0.0008
     cfg.SOLVER.MAX_ITER = 200000
 
@@ -122,6 +122,7 @@ def init_cfg(num_classes, combined=False, run_test=False, office=False, office_t
     elif office:
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.2 # higher more suppression
         cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.2  # lower more suppression, overlap threshold used for non-maximum suppression (suppress boxes with IoU >= this threshold)
+
 
     cfg.OUTPUT_DIR = CONF.PATH.DETECTOUTPUT
 

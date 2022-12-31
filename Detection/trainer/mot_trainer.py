@@ -57,7 +57,6 @@ class MOTTrainer(DefaultTrainer):
 
     @classmethod
     def do_test(cls, cfg, model, save_img_pred=False):
-        logger.info('Start evaluation.')
         results = OrderedDict()
 
         for dataset_name in cfg.DATASETS.TEST:
