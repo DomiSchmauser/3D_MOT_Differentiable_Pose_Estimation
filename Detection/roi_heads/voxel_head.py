@@ -111,13 +111,19 @@ def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None)
         logger.warning('No predicted instances found for image.')
         return
 
+    voxel_pred_split = pred_voxel_logits.split(num_boxes_per_image, dim=0)
+
     if depth is None:
         logger.warning('No depth annotation given. -> No GT instances found for image.')
-        for pred_instances_per_img in pred_instances:
-            pred_instances_per_img.pred_voxels = torch.tensor([]).cuda()
+        for inst, prob in zip(pred_instances, voxel_pred_split):
+            if len(inst) == 0:
+                print('No predicted instances found ...')
+                continue
+            if prob.sum() == 0:
+                inst.pred_voxels = torch.tensor([]).cuda()
+            else:
+                inst.pred_voxels = torch.squeeze(prob, dim=1)
         return
-
-    voxel_pred_split = pred_voxel_logits.split(num_boxes_per_image, dim=0)
 
     for pred_instances_per_img, pred_voxels_per_img in zip(pred_instances, voxel_pred_split):
 
