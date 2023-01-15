@@ -114,7 +114,7 @@ def cam2world(cam_pc, campose):
 def sort_bbox(bboxs):
     '''
     bbox: 8x3 np array
-    Sort in counter clockwise order
+    Sort in counter clockwise order.
     '''
     sort_y = np.flip(np.argsort(bboxs[:, 1]))
     y_sorted = bboxs[sort_y] # bottom points first

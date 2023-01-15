@@ -27,8 +27,8 @@ CONF.PATH.DETECTTRAIN = os.path.join(CONF.PATH.DETECTDATA, 'train')
 CONF.PATH.DETECTVAL = os.path.join(CONF.PATH.DETECTDATA, 'val')
 CONF.PATH.DETECTTEST = os.path.join(CONF.PATH.DETECTDATA, 'test')
 CONF.PATH.DETECTVIS = os.path.join(CONF.PATH.DETECTDATA, 'vis')
-#CONF.PATH.VOXELDATA = os.path.join(os.path.join(CONF.PATH.DETECT, 'front_dataset/'), 'voxel')
-CONF.PATH.VOXELDATA = os.path.join(CONF.PATH.DETECTDATA, 'voxel') # storage for binvox model folder
+CONF.PATH.VOXELDATA = os.path.join(os.path.join(CONF.PATH.DETECT, 'front_dataset/'), 'voxel')
+#CONF.PATH.VOXELDATA = os.path.join(CONF.PATH.DETECTDATA, 'voxel') # storage for binvox model folder
 # Pretrained Detection network folder
 CONF.PATH.DETECTMODEL = os.path.join(CONF.PATH.DETECT, 'model/')
 

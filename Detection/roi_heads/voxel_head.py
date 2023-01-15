@@ -54,7 +54,7 @@ def voxel_loss(
             abs_pred_box = pred_boxes[i, :].to(dtype=torch.int64)
             pred_box = Boxes(torch.unsqueeze(abs_pred_box, dim=0))  # XYXY
 
-            pred_voxel = pred_voxel_logits[i, :, :, :]
+            pred_voxel = pred_voxel_logits[i, :, :, :]  # 32 x 32 x 32
 
             if torch.sum(pred_voxel) == 0:
                 logger.warning("Empty instance given to voxel head, skipping. ")
@@ -68,13 +68,13 @@ def voxel_loss(
 
                 gt_voxel = gt_voxel_logits[idx_max_iou,:,:,:]
                 gt_depth = gt_depth_map[idx_max_iou, :, :] # H x W
-                gt_box = torch.squeeze(gt_boxes_per_image[idx_max_iou].tensor, dim=0) # XYXY
+                gt_box = torch.squeeze(gt_boxes_per_image[idx_max_iou].tensor, dim=0)  # XYXY
 
                 if refiner is not None:
                     depth_crop = gt_depth[int(gt_box[1]):int(gt_box[3]), int(gt_box[0]):int(gt_box[2])]  # H x W
                     norm_depth_crop = resize_transform(torch.unsqueeze(depth_crop, dim=0))
                     pred_voxel = refiner(torch.unsqueeze(pred_voxel, dim=0), norm_depth_crop)
-                    pred_voxel = torch.squeeze(pred_voxel)
+                    pred_voxel = torch.squeeze(pred_voxel)  # 32 x 32 x 32
 
                 voxel_iou = compute_voxel_iou(pred_voxel, gt_voxel)
                 mean_voxel_iou.append(voxel_iou)
@@ -100,7 +100,7 @@ def voxel_loss(
 def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None):
     """
     Args:
-        pred_voxel_logits shape: number_objects x 1 x dims x H x W
+        pred_voxel_logits shape: number_objects x 1 x 32 x 32 x 32
         pred_instances shape: number_images x instance class
     """
 
@@ -122,7 +122,7 @@ def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None)
             if prob.sum() == 0:
                 inst.pred_voxels = torch.tensor([]).cuda()
             else:
-                inst.pred_voxels = torch.squeeze(prob, dim=1)
+                inst.pred_voxels = torch.squeeze(prob, dim=1)  # num_inst_per_img x 32³
         return
 
     for pred_instances_per_img, pred_voxels_per_img in zip(pred_instances, voxel_pred_split):
@@ -139,7 +139,7 @@ def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None)
                 bbox = img_bboxes[instance_idx]  # xyxy absolute
                 depth_crop = depth[0][0][int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]  # H x W
                 if (depth_crop.shape[0] < 2) or (depth_crop.shape[1] < 2):
-                    pred_voxel = pred_voxels_per_img[instance_idx]
+                    pred_voxel = pred_voxels_per_img[instance_idx]  # 1 x 32³
                     logger.warning('Bounding box prediction width or height < 2 pixel, skipping refinement step.')
                 else:
                     norm_depth_crop = resize_transform(torch.unsqueeze(depth_crop, dim=0))
@@ -152,7 +152,7 @@ def voxel_inference(pred_voxel_logits, pred_instances, refiner=None, depth=None)
         if voxel_preds.sum() == 0:
             pred_instances_per_img.pred_voxels = torch.tensor([]).cuda()
         else:
-            pred_instances_per_img.pred_voxels = torch.squeeze(voxel_preds, dim=1)  # inst_per_img x 32 x 32 x 32
+            pred_instances_per_img.pred_voxels = voxel_preds  # inst_per_img x 32 x 32 x 32
 
 @ROI_VOXEL_HEAD_REGISTRY.register()
 class VoxelRefiner(torch.nn.Module):
@@ -194,6 +194,9 @@ class VoxelRefiner(torch.nn.Module):
         '''
         coarse_voxel shape: BS x 32 x 32 x 32
         depth_shape: BS x 64 x 64
+
+        returns:
+            refined_volume: BS x 32 x 32 x 32
         '''
         depth = torch.unsqueeze(depth, dim=1)
         coarse_voxel = torch.unsqueeze(coarse_voxel, dim=1)
@@ -208,10 +211,11 @@ class VoxelRefiner(torch.nn.Module):
             c_st2 = self.layer2(c_st1) # bs x 32 x 8 x 8 x 8
             c_st3 = self.layer3(c_st2) + c_st1  # bs x 16 x 16 x 16 x 16
             gen_volume = self.layer4(c_st3) + coarse_voxel  # bs x 1 x 32 x 32 x 32
+            refined_volume = torch.squeeze(gen_volume, dim=1)
         else:
-            gen_volume = coarse_voxel
+            refined_volume = coarse_voxel
 
-        return gen_volume
+        return refined_volume
 
 
 class Decoder(torch.nn.Module):

@@ -17,39 +17,11 @@ from detectron2.utils.visualizer import GenericMask
 sys.path.append('..') #Hack add ROOT DIR
 from BlenderProc.utils import binvox_rw
 
-
-def pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=500, device=None):
-
-    def get_homog_mat(rot, loc, scale):
-        homog_mat = torch.zeros((4, 4)).to(device)
-        homog_mat[:3, :3] = torch.diag(scale) @ rot.T
-        homog_mat[:3, 3] = loc
-        homog_mat[3, 3] = 1
-        return homog_mat
-
-    def makelist(count, max_int):
-        return [randint(0, max_int) for _ in range(count)]
-
-    num_points = min(max_points, obj_pc.shape[0])
-    idxs = makelist(num_points, obj_pc.shape[0]-1)
-    sample_points = obj_pc[idxs]
-
-    gt_mat = get_homog_mat(gt_rot, gt_loc, gt_scale)
-    pred_mat = get_homog_mat(pred_rot, pred_loc, pred_scale.repeat(3))
-
-    gt_points = gt_mat[:3, :3] @ sample_points.T + gt_mat[:3, 3:]
-    gt_points = gt_points.T
-
-    pred_points = pred_mat[:3, :3] @ sample_points.T + pred_mat[:3, 3:]
-    pred_points = pred_points.T
-
-    point_distance = torch.mean(torch.norm((pred_points - gt_points), dim=-1))
-
-    return point_distance
-
 class PoseLoss(_Loss):
     '''
-    7-DoF pose loss using sampled object points from the complete object voxel grid
+    7-DoF pose loss using sampled object points from the complete object voxel grid. Calculates loss
+    based on distance between a ground truth point cloud and a from the predicted NOCs map backprojected
+    point cloud.
     '''
 
     def __init__(self, max_points=500):
@@ -60,6 +32,32 @@ class PoseLoss(_Loss):
     def forward(self, gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc):
         return pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=self.max_points,
                          device=self.device)
+
+def pose_loss(gt_rot, gt_loc, gt_scale, pred_rot, pred_loc, pred_scale, obj_pc, max_points=500, device=None):
+
+    def transform_points(rot, loc, scale, sample_points):
+
+        homog_mat = torch.zeros((4, 4)).to(device)
+        homog_mat[:3, :3] = torch.diag(scale) @ rot.T
+        homog_mat[:3, 3] = loc
+        homog_mat[3, 3] = 1
+        transformed_points = homog_mat[:3, :3] @ sample_points.T + homog_mat[:3, 3:]
+
+        return transformed_points.T
+
+    def select_random_indicies(count, max_int):
+        return [randint(0, max_int) for _ in range(count)]
+
+    num_points = min(max_points, obj_pc.shape[0])
+    idxs = select_random_indicies(num_points, obj_pc.shape[0]-1)
+    sample_points = obj_pc[idxs]
+
+    gt_points = transform_points(gt_rot, gt_loc, gt_scale, sample_points)
+    pred_points = transform_points(pred_rot, pred_loc, pred_scale.repeat(3), sample_points)
+
+    point_distance = torch.mean(torch.norm((pred_points - gt_points), dim=-1))
+
+    return point_distance
 
 
 def balanced_BCE_loss(gt_voxels, pred_voxels):

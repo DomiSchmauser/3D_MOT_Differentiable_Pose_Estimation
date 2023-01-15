@@ -70,13 +70,11 @@ def inference_on_sequence(instances, depth, campose, gt_annotations , hdf5_dir, 
         gt_classes.append(gt_annotations['cls'][m])
 
         if gt_bin_mask.max() == 0:  # skip empty seg mask
-            # gt_bboxes.append(np.zeros((8,3)))
             gt_bboxes.append(sort_bbox(gt_3dbbox_ann))  # sort in counter clockwise order
             gt_ids.append(gt_id)
             gt_voxels.append(torch.unsqueeze(gt_voxel, dim=0))
             gt_rotations.append(gt_rotation)
             gt_locations.append(gt_location)
-            # print('Sequence {} has empty box, use for debugging'.format(gt_annotations['seq']))
             continue
 
         gt_2dbbox_ann = np.array(BoxMode.convert(gt_2dbbox_anns[m], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS))

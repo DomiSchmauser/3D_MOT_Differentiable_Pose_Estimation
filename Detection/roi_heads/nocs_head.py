@@ -107,6 +107,7 @@ def nocs_loss(
                     gt_voxel = instances_per_image.gt_voxels.to(dtype=torch.float)[idx_max_iou, :, : ,:]
                     obj_pc = vox2pc(gt_voxel)
                     obj_pose_loss = 0
+
                     if get_pose_loss:
                         pred_rot, pred_trans, pred_scale, _, _, _ = \
                             run_pose_torch(reshaped_patch, gt_depth, campose,
@@ -152,15 +153,8 @@ def nocs_inference(pred_nocsmap, pred_instances, use_bin_loss=False, num_bins=32
             logger.warning('No predicted instances found.')
             continue
 
-        num_pred_instances = prob.shape[0]
-        num_dims = len(prob.shape)
-
-        if use_bin_loss and num_pred_instances != 0 and num_dims == 5:
-
-            x_prob = nocs_prob_to_value(prob, channel=0, num_bins=num_bins)
-            y_prob = nocs_prob_to_value(prob, channel=1, num_bins=num_bins)
-            z_prob = nocs_prob_to_value(prob, channel=2, num_bins=num_bins)
-            prob = torch.cat((x_prob, y_prob, z_prob), dim=1)
+        if use_bin_loss:
+            raise NotImplementedError
 
         instances.pred_nocs = prob
 
